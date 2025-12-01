@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { BlogPost } from '../types';
 
-const contentDirectory = path.join(process.cwd(), 'contents');
+const contentDirectory = path.join(process.cwd(), 'contents', 'article');
+const pagesDirectory = path.join(process.cwd(), 'contents', 'about');
 
 // Helper to parse YAML Frontmatter
 const parseFrontmatter = (content: string) => {
@@ -23,7 +24,7 @@ const parseFrontmatter = (content: string) => {
       let value = valueParts.join(':').trim();
       
       // Clean quotes
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'" ) && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
       
@@ -45,6 +46,35 @@ const calculateReadTime = (text: string): string => {
   const time = Math.ceil(words / wpm);
   return `${time} min read`;
 };
+
+export async function getAboutContent(): Promise<BlogPost | null> {
+  const slug = 'about';
+  const fullPathMd = path.join(pagesDirectory, `${slug}.md`);
+  const fullPathMdx = path.join(pagesDirectory, `${slug}.mdx`);
+  
+  let fullPath = '';
+  if (fs.existsSync(fullPathMd)) {
+    fullPath = fullPathMd;
+  } else if (fs.existsSync(fullPathMdx)) {
+    fullPath = fullPathMdx;
+  } else {
+    return null;
+  }
+
+  const fileContents = fs.readFileSync(fullPath, 'utf8');
+  const { metadata, body } = parseFrontmatter(fileContents);
+
+  return {
+    slug,
+    title: metadata.title || slug,
+    summary: metadata.summary || body.substring(0, 150) + '...',
+    content: body,
+    author: metadata.author || 'Admin',
+    date: metadata.date || new Date().toISOString().split('T')[0],
+    tags: metadata.tags || ['General'],
+    readTime: metadata.readTime || calculateReadTime(body),
+  } as BlogPost;
+}
 
 export async function getAllPosts(): Promise<BlogPost[]> {
   if (!fs.existsSync(contentDirectory)) {

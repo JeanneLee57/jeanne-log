@@ -40,6 +40,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Link>
 
           <nav className="flex items-center gap-4">
+            <Link
+              href="/about"
+              className="flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 transition-colors"
+            >
+              About
+            </Link>
             <a
               href={repoUrl}
               target="_blank"
