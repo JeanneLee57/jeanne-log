@@ -18,9 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       title: aboutContent.title,
       description: aboutContent.summary,
-      type: 'profile',
-      authors: [aboutContent.author],
-      tags: aboutContent.tags,
+      type: 'profile'
     },
   };
 }
