@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import { MDXRemote } from 'next-mdx-remote/rsc';
 import { BlogPost } from '../types';
 import { ArrowLeft, Calendar, Clock } from 'lucide-react';
 
@@ -52,14 +52,13 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
         </div>
       </header>
 
-      {/* Markdown Content Area */}
       <div className="prose prose-lg prose-slate dark:prose-invert max-w-none 
         prose-headings:font-bold prose-headings:tracking-tight 
         prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline
         prose-code:text-indigo-600 dark:prose-code:text-indigo-300 prose-code:bg-indigo-50 dark:prose-code:bg-indigo-950/30 prose-code:px-1 prose-code:rounded prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
         prose-pre:bg-slate-900 dark:prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-800
         prose-img:rounded-xl prose-img:shadow-lg">
-        <ReactMarkdown>{post.content}</ReactMarkdown>
+        <MDXRemote source={post.content} />
       </div>
     </article>
   );
