@@ -15,8 +15,8 @@
     "next": "^16.0.7",
     "next-mdx-remote": "^5.0.0",
     "path": "^0.12.7",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
     "react-markdown": "^10.1.0"
   },
   "devDependencies": {
