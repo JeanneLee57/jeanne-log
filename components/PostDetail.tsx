@@ -55,8 +55,8 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
       <div className="prose prose-lg prose-slate dark:prose-invert max-w-none 
         prose-headings:font-bold prose-headings:tracking-tight 
         prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline
-        prose-code:text-indigo-600 dark:prose-code:text-indigo-300 prose-code:bg-indigo-50 dark:prose-code:bg-indigo-950/30 prose-code:px-1 prose-code:rounded prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
-        prose-pre:bg-slate-900 dark:prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-800
+        prose-code:text-gray-900 dark:prose-code:text-white prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
+        prose-pre:bg-slate-900 dark:prose-pre:bg-slate-900 prose-pre:text-white dark:prose-pre:text-white [&_pre_code]:text-white dark:[&_pre_code]:text-white prose-pre:border prose-pre:border-slate-800
         prose-img:rounded-xl prose-img:shadow-lg">
         <MDXRemote source={post.content} />
       </div>
