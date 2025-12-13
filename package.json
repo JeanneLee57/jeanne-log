@@ -33,5 +33,10 @@
     "tailwindcss": "^4.1.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
+  },
+  "lint-staged": {
+    "contents/**/*.{md,mdx}": [
+      "node scripts/update-timestamp.cjs"
+    ]
   }
 }
