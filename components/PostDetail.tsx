@@ -3,10 +3,21 @@ import Link from 'next/link';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import { BlogPost } from '../types';
 import { ArrowLeft, Calendar, Clock } from 'lucide-react';
+import { ResumeSection } from './resume/ResumeSection';
+import { TimelineItem } from './resume/TimelineItem';
+import { SkillList } from './resume/SkillList';
+import { ResumeExport } from './resume/ResumeExport';
 
 interface PostDetailProps {
   post: BlogPost;
 }
+
+const components = {
+  ResumeSection,
+  TimelineItem,
+  SkillList,
+  ResumeExport,
+};
 
 export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
   return (
@@ -21,7 +32,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
 
       <header className="mb-10">
         <div className="flex flex-wrap gap-2 mb-4">
-          {post.tags.map(tag => (
+          {post.tags?.map(tag => (
             <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200">
               {tag}
             </span>
@@ -58,7 +69,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
         prose-code:text-gray-900 dark:prose-code:text-white prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
         prose-pre:bg-slate-900 dark:prose-pre:bg-slate-900 prose-pre:text-white dark:prose-pre:text-white [&_pre_code]:text-white dark:[&_pre_code]:text-white prose-pre:border prose-pre:border-slate-800
         prose-img:rounded-xl prose-img:shadow-lg">
-        <MDXRemote source={post.content} />
+        <MDXRemote source={post.content} components={components} />
       </div>
     </article>
   );
