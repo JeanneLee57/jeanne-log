@@ -120,30 +120,12 @@ tags: ['Resume', 'Frontend', 'Portfolio']
 
 <ResumeSection title="Skills">
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <SkillList 
-      category="Languages" 
-      skills={['JavaScript (ES6+)', 'TypeScript', 'HTML5', 'CSS3']} 
-    />
-    <SkillList 
-      category="Frontend Frameworks" 
-      skills={['React', 'Next.js']} 
-    />
-    <SkillList 
-      category="State Management" 
-      skills={['TanStack Query', 'Recoil', 'MobX', 'Redux']} 
-    />
-    <SkillList 
-      category="Styling" 
-      skills={['Tailwind CSS', 'Styled Components', 'MUI']} 
-    />
-    <SkillList 
-      category="Testing" 
-      skills={['Jest', 'MSW', 'Playwright']} 
-    />
-    <SkillList 
-      category="DevOps & Tools" 
-      skills={['Git', 'Github Actions', 'GCP', 'ArgoCD']} 
-    />
+    <SkillList category="Languages" items="JavaScript, TypeScript, HTML5, CSS3" />
+    <SkillList category="Frontend" items="React, Next.js" />
+    <SkillList category="State Management" items="TanStack Query, Recoil, MobX, Redux" />
+    <SkillList category="Styling" items="Tailwind CSS, Styled Components, MUI" />
+    <SkillList category="Testing" items="Jest, MSW, Playwright" />
+    <SkillList category="Infrastructure" items="Git, Github Actions, GCP, ArgoCD" />
   </div>
 </ResumeSection>
 
