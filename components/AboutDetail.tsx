@@ -4,6 +4,7 @@ import { ResumeSection } from './resume/ResumeSection';
 import { TimelineItem } from './resume/TimelineItem';
 import { SkillList } from './resume/SkillList';
 import { ResumeExport } from './resume/ResumeExport';
+import { ExperienceGroup } from './resume/ExperienceGroup';
 
 interface AboutDetailProps {
   data: AboutData;
@@ -105,19 +106,17 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
               description={exp.description}
               techStack={exp.techStack}
             >
-              {exp.details && exp.details.length > 0 && (
-                <ul className="list-disc pl-5 space-y-4">
-                  {exp.details.map(detail => (
-                    <li key={detail.title}>
-                      <strong>{detail.title}</strong>
-                      <ul className="list-[circle] pl-5 mt-1 space-y-1.5">
-                        {detail.items.map((item, idx) => (
-                          <li key={idx}>{renderHighlightedText(item)}</li>
-                        ))}
-                      </ul>
-                    </li>
+              {exp.detailGroups && exp.detailGroups.length > 0 && (
+                <div className="space-y-4">
+                  {exp.detailGroups.map(group => (
+                    <ExperienceGroup
+                      key={group.category}
+                      category={group.category}
+                      details={group.details}
+                      defaultOpen={true}
+                    />
                   ))}
-                </ul>
+                </div>
               )}
             </TimelineItem>
           ))}

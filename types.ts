@@ -21,9 +21,15 @@ export interface AboutLink {
   type: string;
 }
 
-export interface ExperienceDetail {
+export interface ExperienceItem {
   title: string;
   items: string[];
+  link?: string;
+}
+
+export interface ExperienceDetailGroup {
+  category: string;
+  details: ExperienceItem[];
 }
 
 export interface Experience {
@@ -32,7 +38,7 @@ export interface Experience {
   period: string;
   description?: string;
   techStack?: string[];
-  details?: ExperienceDetail[];
+  detailGroups?: ExperienceDetailGroup[];
 }
 
 export interface SkillCategory {
