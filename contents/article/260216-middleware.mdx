@@ -1,0 +1,174 @@
+---
+title: "미들웨어도 다이어트가 필요해: O(N)을 O(1)로 바꾸는 여정"
+date: "2026-02-16"
+tags: ["middleware", "refactoring", "performance", "Next.js", "TypeScript"]
+description: "각종 권한 체크와 라우팅 로직으로 비대해진 미들웨어 코드를 정리해 구조적인 문제를 해결하고 성능을 최적화한 리팩터링 과정을 공유하려 합니다."
+---
+
+
+서비스가 성장하면 코드도 함께 복잡해집니다. 처음엔 몇 줄 안 되던 `middleware.ts` 파일이 어느새 각종 권한 체크와 라우팅 로직으로 뒤엉켜 유지보수가 마치 보이지 않는 지뢰밟기처럼 여겨지는 상태가 된 것을 발견했습니다.
+
+단순히 코드를 정리하는 것을 넘어, 구조적인 문제를 해결하고 성능을 최적화하며, 유지보수를 놀랍도록 쉽게 만든 리팩터링 과정을 공유하려 합니다.
+
+---
+
+## 1. 문제의식: 흩어진 로직과 늘어나는 불안감
+
+리팩터링 전의 코드는 전형적인 '절차적 나열' 상태였습니다.
+
+```typescript
+// Before: 권한별로 흩어진 배열들
+const TENANT_MASTER_ROUTES = [PATH.MYPAGE.members, PATH.MYPAGE.billing, ...];
+const SITE_MANAGER_ROUTES = [PATH.ACCOUNTING.sites, PATH.ACCOUNTING.activities, ...];
+const INVENTORY_MANAGER_ROUTES = [PATH.INVENTORY.list, ...];
+// ... 계속 늘어나는 배열들
+
+// 미들웨어 내부
+if (TENANT_MASTER_ROUTES.includes(pathname) && !isTenantMaster) {
+  return NextResponse.redirect(new URL('/unauthorized', request.url));
+} else if (SITE_MANAGER_ROUTES.includes(pathname) && !isSiteManager) {
+  return NextResponse.redirect(new URL('/unauthorized', request.url));
+} else if (INVENTORY_MANAGER_ROUTES.includes(pathname) && !isInventoryManager) {
+  // 또 다른 리다이렉트
+}
+// ... 끝없이 이어지는 if-else
+```
+
+이 방식에는 명확한 한계가 있었습니다.
+
+### 유지보수의 어려움
+
+새로운 페이지를 추가할 때마다 "이걸 어느 배열에 넣어야 하지?" 고민하며 스크롤을 끝없이 내렸습니다. 설정이 여러 배열에 분산되어 있어 전체 그림을 파악하기가 힘들었습니다.
+
+더 큰 문제는 예상치 못한 사이드 이펙트였습니다. 한 권한 배열을 수정했는데 엉뚱한 페이지가 접근 불가가 되는 일이 빈번했습니다. "분명 이 페이지는 손도 안 댔는데?" 하며 당황하다가, 알고 보니 다른 조건문에서 먼저 걸려버린 경우였습니다.
+
+"이거 바꾸면 다른 데 영향 없죠?"라는 물음이 던져지면 저는 확신 있게 답할 수 없었습니다.
+
+### 성능 저하 우려 (O(N))
+
+요청이 들어올 때마다 `includes()`나 `some()`으로 배열을 순회해야 합니다. 지금은 페이지가 몇십 개지만, 서비스가 커지면 수백 개가 될 텐데, 그때마다 전체 배열을 순회하는 건 비효율적입니다. 페이지가 늘어날수록 검사 비용도 정비례로 늘어나게 됩니다.
+
+미들웨어는 모든 요청—페이지 이동, API 호출, 정적 자원 로딩—이 거쳐 가는 관문입니다. 여기서의 성능 저하는 서비스 전체의 성능 저하와 유저 경험가 느끼는 반응 속도에 누적적 영향을 미칠 수 있다고 생각했습니다.
+
+### 타입 안정성 부재
+
+```typescript
+if (tenantSetting.usableScrap?.electricity === true) {
+  // ...
+}
+```
+
+권한 체크에 필요한 설정값들이 문자열(`'usableScrap.electricity'`)로 하드코딩되어 있었습니다. 오타가 나도 실행 전까진 알 수 없었고, 백엔드가 DTO를 변경하면 런타임 에러를 맞이했습니다.
+
+---
+
+## 2. 해결 방법: 구조, 성능, 그리고 타입
+
+세 가지 측면에서 코드를 개선했습니다.
+
+### 2.1 구조적 개선: 명령형에서 선언형으로
+
+흩어진 배열들을 `ROUTES_CONFIG`라는 하나의 객체(Map)로 통합했습니다. 이제 라우트별 권한과 설정을 한곳에서 관리합니다.
+
+```typescript
+// After: 설정의 중앙화
+const ROUTES_CONFIG: Record<string, RouteConfig> = {
+  [PATH.ACCOUNTING.process]: {
+    type: 'accountingPage',
+    minimumRole: AccountRole.ROLE_SITE_MANAGER,
+    tenantSettingPath: 'usableProcess',
+  },
+  [PATH.INVENTORY.list]: {
+    type: 'inventoryPage',
+    minimumRole: AccountRole.ROLE_INVENTORY_MANAGER,
+    tenantSettingPath: 'usableInventory',
+  },
+  // ... 모든 라우트가 한곳에
+};
+
+// 미들웨어 내부는 이제 이렇게 간단
+const config = ROUTES_CONFIG[pathname];
+if (!config) return NextResponse.next();
+
+const hasPermission = checkPermission(config, userRole, tenantSetting);
+if (!hasPermission) {
+  return NextResponse.redirect(new URL('/unauthorized', request.url));
+}
+```
+
+개발자는 더 이상 복잡한 `if-else` 분기 로직을 건드릴 필요가 없습니다. 설정 객체에 키와 값만 추가하면 끝입니다. **코드를 수정하는 것이 아니라, 설정을 관리하는 방식**으로 관점을 바꿨습니다.
+
+이제 새 페이지 추가하려면 다른 복잡한 로직을 볼 필요 없이 `ROUTES_CONFIG`에 그 페이지에 대한 정의만 추가하면 되었습니다.
+
+### 2.2 알고리즘 효율성: O(N)에서 O(1)로
+
+자료구조를 변경하여 성능을 확보했습니다. 기존에는 배열을 순회하며 경로를 찾았다면, 이제는 URL 경로를 Key로 사용하여 설정 객체에서 즉시 조회(Hash Map Lookup)합니다.
+
+```typescript
+// Before: O(N) — 배열 순회
+const isProtected = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+
+// After: O(1) — 객체 키 조회
+const config = ROUTES_CONFIG[pathname];
+```
+
+라우트가 100개든 1,000개든, 미들웨어의 검사 속도는 언제나 일정(O(1))하게 유지됩니다.
+
+### 2.3 타입 안정성: 매직 스트링 제거
+
+**Template Literal Types**를 활용하여 타입 안정성을 확보했습니다.
+
+```typescript
+// 중첩된 객체의 경로를 타입으로 자동 생성
+export type TenantSettingPath = Join<PathsToStringProps<TenantSettingResponseDto>, '.'>;
+
+// ... ROUTES_CONFIG 내에서
+const config: RouteConfig = {
+  // ...
+  tenantSettingPath: 'usableScrap.electricity', // 자동 완성 지원 & 오타 시 에러 표시
+};
+```
+
+이제 IDE가 설정 경로를 자동 완성해 줍니다. 백엔드가 DTO를 변경하면 타입 에러가 발생하여 즉시 알 수 있습니다. 런타임 에러에 대한 불안감을 컴파일 단계에서의 확신으로 바꿀 수 있었습니다.
+
+---
+
+## 3. 결과: 수치로 증명된 개선
+
+리팩터링 후, AI를 활용해 격리된 환경에서 마이크로 벤치마크를 진행했습니다. 네트워크 변수를 통제하기 위해 `fetch`와 `NextRequest`를 모킹(Mocking)하고, 1,000번 반복 수행하여 평균을 냈습니다.
+
+### Benchmark Result
+
+* **Before:** 23.59ms (Avg 0.0236ms/op)
+* **After:** 19.22ms (Avg 0.0192ms/op)
+* **Improvement:** **약 18.53% 성능 향상**
+
+### 분석
+
+단순히 자료구조만 바꾼 것이 아니라, 비동기 처리 방식도 개선했습니다. 기존의 `Promise.allSettled`를 `Promise.all`로 변경하여, 권한 체크 API 중 하나라도 실패하면 즉시 실패 처리하는 **Fail Fast** 전략을 취했습니다. 불필요한 대기 시간을 없앤 것이 유효했습니다.
+
+물론 1회 실행당 0.004ms 단축은 찰나의 순간일 수 있습니다. 하지만 트래픽이 늘어날수록 이 작은 차이는 거대한 리소스 절약으로 이어질 것입니다.
+
+### 그 이후
+
+가장 큰 변화는 **안정성**이었습니다. 권한 설정을 변경할 때 엉뚱한 페이지가 막히는 일이 거의 사라졌습니다. 팀원이 새 기능을 추가할 때 더 이상 "이거 바꾸면 괜찮죠?"라고 묻지 않습니다. 코드에 대한 신뢰가 생긴 것입니다.
+
+---
+
+## 4. 교훈: 문제의식과 지속 가능한 설계
+
+이번 리팩터링의 시작은 "이 코드는 개선이 필요하다"는 직감이었습니다.
+
+비효율적인 구조는 단순히 성능 문제를 넘어 유지보수성과 안정성에 영향을 미칩니다. 배열 순회 방식의 O(N) 복잡도는 당장은 크게 문제가 되지 않을 수 있지만, 서비스가 성장하면서 점차 부담이 됩니다. 조기에 구조적 문제를 발견하고 개선하는 것이 중요합니다.
+
+---
+
+## 마치며
+
+이번 리팩터링을 통해 얻은 것은 단순히 '빨라진 코드'만이 아닙니다.
+
+- 어디를 고쳐야 할지 명확해진 코드 구조 덕분에 유지보수에 대한 부담이 줄었고,
+- 강력해진 타입 시스템 덕분에 코드에 대한 신뢰도가 높아졌으며,
+- 팀원이 더 이상 "이거 건드려도 되나요?"라고 묻지 않게 되었습니다.
+
+기능 구현에 급급해 늘어놓았던 코드들을 정리하며, **"작동하는 코드"에서 "지속 가능한 코드"로** 한 단계 성장할 수 있었습니다.
