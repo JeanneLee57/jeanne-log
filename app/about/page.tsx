@@ -1,5 +1,5 @@
 import { getAboutContent } from '../../services/postService';
-import { PostDetail } from '../../components/PostDetail';
+import { AboutDetail } from '../../components/AboutDetail';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 
@@ -30,5 +30,5 @@ export default async function AboutPage() {
     notFound();
   }
 
-  return <PostDetail post={aboutContent} />;
+  return <AboutDetail data={aboutContent} />;
 }

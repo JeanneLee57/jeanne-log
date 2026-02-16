@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { BlogPost } from '../types';
+import matter from 'gray-matter';
+import { BlogPost, AboutData } from '../types';
 
 const contentDirectory = path.join(process.cwd(), 'contents', 'article');
 const pagesDirectory = path.join(process.cwd(), 'contents', 'about');
@@ -47,11 +48,11 @@ const calculateReadTime = (text: string): string => {
   return `${time} min read`;
 };
 
-export async function getAboutContent(): Promise<BlogPost | null> {
+export async function getAboutContent(): Promise<AboutData | null> {
   const slug = 'about';
   const fullPathMd = path.join(pagesDirectory, `${slug}.md`);
   const fullPathMdx = path.join(pagesDirectory, `${slug}.mdx`);
-  
+
   let fullPath = '';
   if (fs.existsSync(fullPathMd)) {
     fullPath = fullPathMd;
@@ -62,18 +63,22 @@ export async function getAboutContent(): Promise<BlogPost | null> {
   }
 
   const fileContents = fs.readFileSync(fullPath, 'utf8');
-  const { metadata, body } = parseFrontmatter(fileContents);
+  const { data } = matter(fileContents);
 
   return {
-    slug,
-    title: metadata.title || slug,
-    summary: metadata.summary || body.substring(0, 150) + '...',
-    content: body,
-    author: metadata.author || 'Admin',
-    date: metadata.date || new Date().toISOString().split('T')[0],
-    tags: metadata.tags || ['General'],
-    readTime: metadata.readTime || calculateReadTime(body),
-  } as BlogPost;
+    title: data.title || slug,
+    summary: data.summary || '',
+    author: data.author || 'Admin',
+    date: data.date ? String(data.date) : new Date().toISOString().split('T')[0],
+    tags: data.tags || ['General'],
+    profileImage: data.profileImage || '',
+    introduction: data.introduction || '',
+    links: data.links || [],
+    experience: data.experience || [],
+    skills: data.skills || [],
+    education: data.education || [],
+    activities: data.activities || [],
+  } as AboutData;
 }
 
 export async function getAllPosts(): Promise<BlogPost[]> {
