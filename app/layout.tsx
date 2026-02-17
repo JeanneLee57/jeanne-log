@@ -1,6 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import { Layout } from '../components/Layout'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -23,6 +24,7 @@ export default function RootLayout({
           {children}
         </Layout>
       </body>
+      <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID!} />
     </html>
   )
 }
