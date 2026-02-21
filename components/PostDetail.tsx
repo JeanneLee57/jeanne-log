@@ -38,7 +38,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
               <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold">
                 {post.author.charAt(0)}
               </div>
-              <span className="font-medium text-slate-700 dark:text-slate-200">{post.author}</span>
+              <span className="font-medium text-slate-800 dark:text-slate-200">{post.author}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Calendar size={15} />

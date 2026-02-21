@@ -18,7 +18,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
   children 
 }) => {
   return (
-    <div className="relative pl-10 pb-12 last:pb-4 group not-prose break-inside-avoid-page">
+    <div className="relative pl-10 pb-12 last:pb-4 group not-prose">
       {/* Vertical Line - starts from the center of the dot */}
       <div className="absolute left-[7px] top-[14px] bottom-0 w-0.5 bg-slate-200 dark:bg-slate-800 group-last:hidden print:bg-slate-200" />
       
@@ -45,7 +45,7 @@ export const TimelineItem: React.FC<TimelineItemProps> = ({
       )}
       
       {children && (
-        <div className="text-slate-700 dark:text-slate-300 text-[length:var(--font-size-resume)] leading-[var(--line-height-resume)] space-y-3">
+        <div className="text-slate-800 dark:text-slate-300 text-[length:var(--font-size-resume)] leading-[var(--line-height-resume)] space-y-3">
           {children}
         </div>
       )}

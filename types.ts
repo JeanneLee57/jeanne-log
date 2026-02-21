@@ -19,12 +19,14 @@ export interface AboutLink {
   label: string;
   url: string;
   type: string;
+  printUrl?: string;
 }
 
 export interface ExperienceItem {
   title: string;
   items: string[];
   link?: string;
+  printUrl?: string;
 }
 
 export interface ExperienceDetailGroup {

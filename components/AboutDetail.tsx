@@ -12,7 +12,7 @@ interface AboutDetailProps {
 
 const linkStyles: Record<string, string> = {
   email: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-100 dark:border-indigo-900/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50',
-  github: 'bg-slate-50 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300 border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-800',
+  github: 'bg-slate-50 text-slate-800 dark:bg-slate-800/50 dark:text-slate-300 border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-800',
   linkedin: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-100 dark:border-blue-900/50 hover:bg-blue-100 dark:hover:bg-blue-900/50',
   blog: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40',
   tistory: 'bg-orange-50 text-orange-700 dark:bg-orange-900/10 dark:text-orange-300/70 border-orange-100/50 dark:border-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30',
@@ -71,8 +71,8 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
             />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              사용자 경험을 고민하는 프론트엔드 엔지니어
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              문제를 정의하고, 팀과 함께 해결하는 프론트엔드 엔지니어
             </h2>
             <p className="text-slate-600 dark:text-slate-300 mb-6 text-[length:var(--font-size-resume)] leading-[var(--line-height-resume)]">
               {data.introduction}
@@ -84,8 +84,9 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
                   <a
                     key={link.label}
                     href={link.url}
+                    data-print-url={link.printUrl ?? link.url}
                     {...(isExternal && link.type !== 'email' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors border ${linkStyles[link.type] || linkStyles.github}`}
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors border print:border-none print:bg-transparent print:p-0 print:text-slate-700 print:font-normal print-link ${linkStyles[link.type] || linkStyles.github}`}
                   >
                     {link.label}
                   </a>
