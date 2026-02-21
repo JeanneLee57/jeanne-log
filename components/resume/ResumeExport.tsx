@@ -27,7 +27,7 @@ export const ResumeExport: React.FC = () => {
             background: white !important;
             color: black !important;
           }
-          header, footer, nav, aside {
+          footer, nav, aside {
             display: none !important;
           }
           article {
@@ -37,6 +37,19 @@ export const ResumeExport: React.FC = () => {
           }
           .prose {
             max-width: none !important;
+          }
+          /* Show URLs after links */
+          .print-link::after {
+            content: ": " attr(data-print-url);
+            font-size: 0.8em;
+            color: #475569;
+            font-weight: normal;
+          }
+          .print-link-url::after {
+            content: " " attr(data-print-url);
+            font-size: 0.8em;
+            color: #475569;
+            font-weight: normal;
           }
           /* Ensure colors are printed */
           * {

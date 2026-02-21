@@ -8,6 +8,7 @@ interface ExperienceItem {
   title: string;
   items: string[];
   link?: string;
+  printUrl?: string;
 }
 
 interface ExperienceGroupProps {
@@ -47,6 +48,7 @@ export const ExperienceGroup: React.FC<ExperienceGroupProps> = ({
               title={detail.title}
               items={detail.items}
               link={detail.link}
+              printUrl={detail.printUrl}
             />
           ))}
         </div>
