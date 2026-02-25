@@ -98,7 +98,7 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
 
         {/* Experience */}
         <ResumeSection title="Experience">
-          {data.experience.map(exp => (
+          {data.experience.filter(exp => !exp.hide).map(exp => (
             <TimelineItem
               key={`${exp.company}-${exp.period}`}
               company={exp.company}
@@ -107,12 +107,14 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
               description={exp.description}
               techStack={exp.techStack}
             >
-              {exp.detailGroups && exp.detailGroups.length > 0 && (
+              {exp.detailGroups && exp.detailGroups.filter(g => !g.hide).length > 0 && (
                 <div className="space-y-4">
-                  {exp.detailGroups.map(group => (
+                  {exp.detailGroups.filter(g => !g.hide).map(group => (
                     <ExperienceGroup
-                      key={group.category}
-                      category={group.category}
+                      key={group.project}
+                      project={group.project}
+                      duration={group.duration}
+                      projectDetail={group.projectDetail}
                       details={group.details}
                       defaultOpen={true}
                     />

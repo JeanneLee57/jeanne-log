@@ -46,7 +46,8 @@ export const ResumeExport: React.FC = () => {
             font-weight: normal;
           }
           .print-link-url::after {
-            content: " " attr(data-print-url);
+            content: attr(data-print-url);
+            margin-left: 0.5em;
             font-size: 0.8em;
             color: #475569;
             font-weight: normal;

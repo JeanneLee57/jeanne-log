@@ -30,11 +30,15 @@ export interface ExperienceItem {
 }
 
 export interface ExperienceDetailGroup {
-  category: string;
+  hide?: boolean;
+  project: string;
+  duration?: string;
+  projectDetail?: string;
   details: ExperienceItem[];
 }
 
 export interface Experience {
+  hide?: boolean;
   company: string;
   role: string;
   period: string;
