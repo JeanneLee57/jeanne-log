@@ -9,7 +9,7 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mon
 
 export const metadata: Metadata = {
   title: 'jeanne-log',
-  description: '프론트엔드 개발자 Jeanne의 블로그',
+  description: '소프트웨어 엔지니어 Jeanne의 블로그',
 }
 
 export default function RootLayout({

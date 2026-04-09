@@ -72,7 +72,7 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
           </div>
           <div className="flex-1 text-center md:text-left">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-              문제를 정의하고, 팀과 함께 해결하는 프론트엔드 엔지니어
+              문제를 정의하고, 실험하고, 팀과 함께 해결하는 소프트웨어 엔지니어
             </h2>
             <p className="text-slate-600 dark:text-slate-300 mb-6 text-[length:var(--font-size-resume)] leading-[var(--line-height-resume)]">
               {data.introduction}
