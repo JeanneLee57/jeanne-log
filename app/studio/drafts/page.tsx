@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getDraftSummaries } from "@/services/draftRepository";
 
 const statusStyles: Record<string, string> = {
@@ -47,9 +48,10 @@ export default async function DraftStudioPage() {
       ) : (
         <div className="grid gap-4">
           {drafts.map((draft) => (
-            <article
+            <Link
               key={draft.id}
-              className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors dark:border-slate-800 dark:bg-slate-950"
+              href={`/studio/drafts/${draft.id}`}
+              className="block rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-colors hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700"
             >
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="space-y-3">
@@ -94,7 +96,7 @@ export default async function DraftStudioPage() {
                   </div>
                 </dl>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       )}
