@@ -1,0 +1,182 @@
+---
+title: Claude CLI 타임아웃 디버깅: 근본 원인 추적
+summary: GitHub Actions CI에서 Claude CLI가 bash 명령 실행 중 hang되는 문제를 단계적으로 추적한 디버깅 과정
+date: 2026-04-08
+tags: [Claude, 디버깅, 타임아웃]
+author: Jeanne
+---
+
+# Claude CLI 타임아웃 디버깅: 증상 치료에서 근본 원인 추적까지
+
+> **TL;DR**: `spawnSync` ETIMEDOUT 에러의 원인이 단순한 타임아웃 설정 오류가 아닌, Claude CLI가 CI 환경에서 bash 명령을 실행하다 hang되는 문제임을 단계적으로 추적한 과정.
+
+---
+
+## 1. 세션 목표
+
+GitHub Actions CI에서 TDD 오케스트레이터(`orchestrate_tdd.mjs`)가 실패하고 있었다. 표면적인 에러는 `spawnSync node ETIMEDOUT`이지만, 진짜 질문은 하나였다:
+
+**왜 `claude --print`가 20분 이상 걸리는가?**
+
+---
+
+## 2. 세부 태스크 흐름
+
+1. ETIMEDOUT 에러 재현 및 스택 트레이스 분석
+2. outer/inner 타임아웃 불일치 발견
+3. 증상 치료 시도 → 근본 원인 추적으로 방향 전환
+4. 트랜스크립트 파일 존재 여부 확인
+5. CLI 인자 길이 제한 가설 검토
+6. 최종 원인 추정 및 해결 방향 도출
+
+---
+
+## 3. 태스크별 상세
+
+### 3-1. ETIMEDOUT 에러 분석
+
+**내용**
+
+CI 로그에서 다음 에러가 발생했다:
+
+```
+Error: spawnSync node ETIMEDOUT
+    at runCodexAgent (orchestrate_tdd.mjs:84:18)
+errno: -110, code: 'ETIMEDOUT', syscall: 'spawnSync node'
+```
+
+`spawnSync`로 `run_codex_agent.mjs`를 실행했는데, 정해진 타임아웃 내에 프로세스가 종료되지 않아 ETIMEDOUT이 터진 상황.
+
+**주요 키워드**
+- `spawnSync` / `ETIMEDOUT` / `errno: -110`
+- Node.js 동기적 자식 프로세스 실행
+- GitHub Actions CI 환경
+
+---
+
+### 3-2. Outer/Inner 타임아웃 불일치
+
+**내용**
+
+첫 번째로 발견한 문제는 타임아웃 설정의 레이어 충돌이었다:
+
+| 레이어 | 타임아웃 |
+|--------|---------|
+| `spawnSync` outer timeout | **10분** |
+| `claude --print` inner timeout | **20분** |
+
+outer가 inner보다 짧으니 claude가 채 끝나기도 전에 spawnSync가 죽이는 구조였다. `ORCHESTRATOR_AGENT_TIMEOUT_MS` 환경 변수가 이미 선언돼 있었으나 실제 `spawnSync` 호출에 반영되지 않고 있었다.
+
+**디버깅 과정**
+
+스택 트레이스의 `orchestrate_tdd.mjs:84` 라인에서 `spawnSync` 호출부를 확인 → timeout 옵션이 하드코딩(10분)되어 있음을 발견 → `ORCHESTRATOR_AGENT_TIMEOUT_MS`로 교체하면 해결될 것으로 보였다.
+
+**주요 키워드**
+- `spawnSync` timeout 옵션
+- 환경 변수 `ORCHESTRATOR_AGENT_TIMEOUT_MS`
+- 타임아웃 계층 구조
+
+---
+
+### 3-3. 증상 치료 vs 근본 원인 추적
+
+**내용**
+
+타임아웃을 늘리는 방향으로 수정하려 하자 유저가 중단했다:
+
+> "근데 왜 애초에 spawnSync에 그렇게 오래 걸린 건지 알아야 하지 않아?"
+
+이 질문이 디버깅의 핵심을 바꿨다. **타임아웃을 늘리는 건 증상 치료다**. `claude --print`가 왜 20분 넘게 걸렸느냐가 실제 문제다.
+
+**유저가 겪은 어려움**
+
+AI가 곧바로 "타임아웃 값 수정"으로 달려가려 했고, 유저가 직접 방향을 잡아줘야 했다. 에러 메시지만 보고 빠른 수정에 집중하다 보면 진짜 원인을 놓치기 쉬운 전형적인 패턴이다.
+
+**주요 키워드**
+- 증상 치료(symptom fix) vs 근본 원인 분석(root cause analysis)
+- 디버깅 사고 전환
+
+---
+
+### 3-4. 트랜스크립트 파일 존재 여부 확인
+
+**내용**
+
+`orchestrate_tdd.mjs`는 Claude 실행 후 transcript 파일(`transcripts/01-write-tests.md`)을 생성하도록 설계돼 있었다. 유저가 확인한 결과:
+
+> "트랜스크립트 파일이 안 생겼어."
+
+이것은 결정적인 단서였다. **트랜스크립트가 없다 = Claude가 20분 동안 아무것도 완료하지 못했다**.
+
+단순히 느린 게 아니라, 무언가에 걸려서 hang된 것이다.
+
+**주요 키워드**
+- transcript 파일 생성 여부
+- `--print` 모드 동작 방식
+- hang vs slow 구분
+
+---
+
+### 3-5. CLI 인자 길이 제한 가설 검토
+
+**내용**
+
+트랜스크립트 미생성을 확인한 뒤, 한 가지 가설이 제시됐다:
+
+```javascript
+// 프롬프트를 CLI 인자로 직접 전달
+spawnSync(claudeBin, ['--print', '--model', 'claude-sonnet-4-6', prompt], ...)
+```
+
+`prompt` 안에 context 파일 전체가 포함되어 있고, 소스 파일까지 추가되면 수만 자가 될 수 있다. Linux CLI 인자 길이 제한(~2MB)에 걸리거나 파싱 중 멈출 수 있다는 가설이었다.
+
+**유저의 반박**
+
+> "수만 자는 될 수 있는데.. 그렇다고 멈춰? 보통 그러진 않지"
+
+타당한 반박이었다. CLI 인자 길이 자체로 hang이 발생하는 케이스는 일반적이지 않다. 가설 기각.
+
+**주요 키워드**
+- Linux `ARG_MAX` (CLI 인자 최대 길이)
+- stdin vs 인자 전달 방식
+- 가설 검증과 기각
+
+---
+
+### 3-6. 최종 원인 추정 및 해결 방향
+
+**내용**
+
+모든 단서를 종합한 최종 추정:
+
+> Claude가 테스트 파일을 *작성*하는 데 그치지 않고, **`pnpm install`이나 `pnpm test`를 실제로 실행**했고, CI 환경에서 그 명령이 오래 걸렸거나 멈췄다.
+
+`claude --print` 모드도 bash 실행을 허용하기 때문에, 프롬프트에 충분한 제약이 없으면 Claude가 자율적으로 명령을 실행한다.
+
+**제시된 해결 방향**
+
+1. **`--allowedTools` 제한**: bash 실행 자체를 막는다
+   ```bash
+   claude --print --allowedTools "Read,Write,Edit" ...
+   ```
+
+2. **프롬프트 제약 추가**: "테스트를 실행하지 말고 파일만 작성하라"는 명시적 지시 삽입
+
+**주요 키워드**
+- `claude --print` 모드의 bash 실행 권한
+- `--allowedTools` 플래그
+- CI 환경에서의 LLM agent 제어
+- Prompt 제약 설계
+
+---
+
+## 4. 핵심 교훈
+
+```
+타임아웃 에러 → 타임아웃 늘리기 (X)
+타임아웃 에러 → 왜 타임아웃이 났는가? (O)
+```
+
+LLM을 CI 파이프라인에서 자율 에이전트로 실행할 때는 **허용할 도구의 범위를 명시적으로 제한**해야 한다. 그렇지 않으면 Claude는 "테스트도 확인해봐야지"라는 판단으로 bash 명령을 실행하고, CI가 그 여파를 뒤집어쓴다.
+
+> **원칙**: 에이전트에게 줄 수 있는 권한은 최소한으로. 필요할 때 추가하는 것이 회수하는 것보다 쉽다.

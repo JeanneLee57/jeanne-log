@@ -1,0 +1,174 @@
+---
+title: AI Issue-to-PR 워크플로우 디버깅 기록
+summary: GitHub Actions 워크플로우의 타임아웃과 파일 생성 문제를 해결한 디버깅 기록
+date: 2026-04-08
+tags: [GitHub Actions, 워크플로우, 디버깅, TDD, Node.js]
+author: Jeanne
+---
+
+# AI Issue-to-PR 워크플로우 디버깅 기록
+
+## 세션 개요
+
+GitHub Actions 기반 TDD 오케스트레이터(`ai-issue-to-pr`) 워크플로우가 CI에서 반복적으로 실패하는 문제를 추적하고 수정한 세션이다. 증상이 여러 겹으로 쌓여 있어 원인을 하나씩 벗겨내는 과정이 필요했다.
+
+---
+
+## 목표
+
+`ai-issue-to-pr` GitHub Actions 워크플로우가 CI에서 정상 동작하도록 수정한다. 구체적으로는:
+
+- TDD 오케스트레이터(`orchestrate_tdd.mjs`)가 에이전트를 호출하고, 에이전트가 생성한 파일이 실제 디스크에 기록되어야 한다.
+- 로컬 테스트로 검증 후 CI에 올릴 수 있는 상태를 만든다.
+
+---
+
+## 태스크 1: `spawnSync ETIMEDOUT` 원인 분석
+
+### 내용
+
+CI 실행 중 다음 에러가 발생했다:
+
+```
+Error: spawnSync node ETIMEDOUT
+  errno: -110, code: 'ETIMEDOUT', syscall: 'spawnSync node'
+```
+
+`orchestrate_tdd.mjs`에서 `run_codex_agent.mjs`를 `spawnSync`로 호출하고, 그 안에서 다시 `claude --print`를 `spawnSync`로 호출하는 **이중 중첩 동기 타임아웃 구조**였다.
+
+### 디버깅 과정
+
+- 외부 타임아웃: `spawnSync('node', [run_codex_agent.mjs])` → **1,230,000ms** (20분 30초)
+- 내부 타임아웃: `spawnSync(claude, ['--print'])` → **1,200,000ms** (20분)
+
+설계 의도는 내부 타임아웃이 먼저 발동해 30초 버퍼 내에 정리하는 것이었으나, `claude --print`가 SIGTERM을 받아도 즉시 종료되지 않는 경우(스트리밍 응답 중 네트워크 연결 정리 등) 30초를 초과하면 외부 타임아웃이 발동했다.
+
+### 어려움
+
+`spawnSync`는 SIGTERM 이후에도 자식 프로세스가 실제로 죽을 때까지 블로킹한다. 따라서 30초 버퍼가 `claude`의 graceful shutdown을 감당하기에 부족했다.
+
+### 해결
+
+단기 임시 해결책으로 외부 타임아웃을 늘렸다. 근본 해결은 `spawnSync` → `spawn`(비동기) 전환 + SIGTERM → SIGKILL 패턴 적용이다.
+
+### 주요 키워드
+
+`spawnSync`, `ETIMEDOUT`, `SIGTERM`, graceful shutdown, 이중 타임아웃 체인
+
+---
+
+## 태스크 2: 테스트 파일이 생성되지 않는 문제
+
+### 내용
+
+타임아웃을 늘린 후 실행했더니 에이전트 트랜스크립트에는 파일을 생성했다고 기록되어 있었지만, 오케스트레이터는 계속 실패를 보고했다:
+
+```
+❌ 테스트 파일이 생성되지 않았습니다. 중단합니다.
+```
+
+### 디버깅 과정
+
+원인 가설이 두 가지로 나뉘었다:
+
+1. **`claude --print`는 텍스트 출력 모드** — LLM이 `<write_file>` 블록이 포함된 텍스트를 stdout으로 출력하지만, 이를 파싱해서 디스크에 쓰는 코드가 오케스트레이터에 없었다.
+2. **로컬에서는 작동했다는 증언** — "로컬에서 돌렸을 때는 실제로 파일이 생겼었다"는 말이 혼란을 더했다.
+
+결국 확인한 것: 프롬프트 파일(140-149줄)에 **"도구를 쓰지 말고 `<write_file>` 텍스트로 출력하라"**고 명시적으로 지시하고 있었다. 원래 OpenAI Codex용으로 설계된 프롬프트였고, Codex는 `--print` 모드에서 도구가 없어 텍스트 파싱이 필요했다.
+
+### 어려움
+
+- 로컬 성공/CI 실패의 불일치가 "Claude가 도구를 쓰는지 여부"의 문제인지, "파일 쓰기 후 커밋 로직"의 문제인지 구분하기 어려웠다.
+- 에이전트 트랜스크립트에 "파일을 만들었다"고 적혀 있어도, 그건 **LLM이 만들었다고 말한 것**이지 실제 I/O가 아니었다.
+
+### 해결
+
+`orchestrate_tdd.mjs`에 `applyWriteFileBlocks()` 함수를 추가했다. `runCodexAgent` 반환 후 출력에서 `<write_file path="...">...</write_file>` 블록을 파싱하여 실제 파일로 기록하는 폴백 로직이다. write-tests, implement, fix-loop 단계 모두에 적용했다.
+
+### 주요 키워드
+
+`claude --print`, `<write_file>` 텍스트 프로토콜, 파일 파싱 폴백, Codex 프롬프트 호환성
+
+---
+
+## 태스크 3: `main().catch()` TypeError
+
+### 내용
+
+로컬 테스트 실행 중 매 fix 시도마다 다음 에러가 반복됐다:
+
+```
+TypeError: Cannot read properties of undefined (reading 'catch')
+    at run_codex_agent.mjs:216:9
+```
+
+### 디버깅 과정
+
+`run_codex_agent.mjs`의 `main()` 함수가 `async`가 아닌 동기 함수였는데 `.catch()`를 호출하고 있었다. 동기 함수는 `undefined`를 반환하므로 `.catch()`가 TypeError를 발생시켰다.
+
+이 에러 자체는 치명적이지 않았지만(fix 루프는 계속 진행), `spawnSync`의 exit code를 비정상으로 만들어 오케스트레이터가 `⚠️ 구현 완료 (비정상 종료)`를 출력하게 했다.
+
+### 해결
+
+`.catch()` 패턴을 `try/catch`로 교체했다.
+
+### 주요 키워드
+
+`async/await`, `spawnSync` exit code, ESM 모듈 진입점 패턴
+
+---
+
+## 태스크 4: `--print` 모드에서 도구 실행 여부 탐색
+
+### 내용
+
+폴백이 항상 작동하는 것이 정상인지 의문이 생겼다. Claude Code의 `--print` 모드에서 도구(파일 쓰기 등)가 실행되는지 확인했다.
+
+### 디버깅 과정
+
+프롬프트에서 `<write_file>` 지시를 제거하고 Claude가 자체 도구로 파일을 생성하게 바꿨더니:
+
+```
+❌ 테스트 파일이 생성되지 않았습니다.
+```
+
+다시 실패. 이유: `--print` 모드는 **도구를 실행하지 않는다**. 대화형이 아닌 환경에서 도구 실행 승인을 받을 수 없기 때문이다.
+
+그래서 `--dangerously-skip-permissions` 플래그를 추가해봤지만 결과는 동일했다.
+
+### 결론
+
+**`--print` 모드는 텍스트만 출력하는 모드다.** 도구 실행이 필요하면 대화형 세션(`claude` 단독 실행) 또는 별도의 파일 기록 단계가 필요하다. 이 워크플로우 구조에서는 `<write_file>` 텍스트 파싱 폴백이 실질적인 정상 경로다.
+
+### 참고: 과거에 동작하던 워크플로우
+
+기존 `AI Issue-to-PR (Implement)` 워크플로우는 `orchestrate_tdd.mjs` 없이 `claude --print --dangerously-skip-permissions`를 직접 실행하고, `git add -u && git add <untracked>`로 커밋하는 단순한 구조였다. 오케스트레이터 레이어가 없었기 때문에 파일 생성 여부 검증도 없었고, 정상 동작처럼 보였다.
+
+### 주요 키워드
+
+`claude --print`, `--dangerously-skip-permissions`, 비대화형 모드, 도구 실행 권한, `<write_file>` 프로토콜
+
+---
+
+## 전체 흐름 요약
+
+```
+ETIMEDOUT (타임아웃 버퍼 부족)
+  → 타임아웃 증가 (임시 해결)
+    → 테스트 파일 미생성 발견
+      → applyWriteFileBlocks 폴백 추가
+        → main().catch() TypeError 수정
+          → --print 모드 도구 실행 불가 확인
+            → <write_file> 텍스트 파싱이 정상 경로임을 확인
+```
+
+---
+
+## 핵심 교훈
+
+| 상황 | 교훈 |
+|---|---|
+| 에이전트 트랜스크립트에 "파일 생성 완료"라고 적혀 있음 | LLM의 텍스트 출력과 실제 I/O는 별개다 |
+| 로컬에서 됐는데 CI에서 안 됨 | 워크플로우 코드가 그 사이에 변경됐을 가능성을 먼저 확인 |
+| `--print` 모드 + `--dangerously-skip-permissions` | `--print`는 도구 실행 자체가 안 되는 모드. 플래그로 해결 불가 |
+| Codex용 프롬프트를 Claude에 그대로 사용 | 프롬프트의 출력 포맷 지시가 에이전트 동작에 직접 영향을 미침 |
