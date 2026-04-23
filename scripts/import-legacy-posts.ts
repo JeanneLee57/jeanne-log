@@ -13,6 +13,7 @@ import {
 
 const articleDirectory = path.join(process.cwd(), "contents", "article");
 const dryRun = process.argv.includes("--dry-run");
+const publishImportedPosts = process.argv.includes("--publish");
 
 function toPublishedDate(dateValue: string) {
   const parsed = new Date(dateValue);
@@ -60,10 +61,10 @@ async function upsertLegacyPost(fileName: string) {
         .insert(articles)
         .values({
           slug,
-          status: "published",
+          status: publishImportedPosts ? "published" : "draft",
           title: metadata.title || slug,
           summary,
-          publishedAt,
+          publishedAt: publishImportedPosts ? publishedAt : null,
           createdAt: publishedAt,
           updatedAt: new Date(),
         })
@@ -72,16 +73,18 @@ async function upsertLegacyPost(fileName: string) {
       articleId = insertedArticle[0].id;
       created = true;
     } else {
-      await tx
-        .update(articles)
-        .set({
-          status: "published",
-          title: metadata.title || slug,
-          summary,
-          publishedAt,
-          updatedAt: new Date(),
-        })
-        .where(eq(articles.id, articleId));
+      const articleUpdate: Partial<typeof articles.$inferInsert> = {
+        title: metadata.title || slug,
+        summary,
+        updatedAt: new Date(),
+      };
+
+      if (publishImportedPosts) {
+        articleUpdate.status = "published";
+        articleUpdate.publishedAt = publishedAt;
+      }
+
+      await tx.update(articles).set(articleUpdate).where(eq(articles.id, articleId));
 
       updated = true;
     }
@@ -146,14 +149,16 @@ async function upsertLegacyPost(fileName: string) {
       updated = true;
     }
 
-    await tx
-      .update(articles)
-      .set({
-        currentVersionId: versionId,
-        publishedVersionId: versionId,
-        updatedAt: new Date(),
-      })
-      .where(eq(articles.id, articleId));
+    const versionPointers: Partial<typeof articles.$inferInsert> = {
+      currentVersionId: versionId,
+      updatedAt: new Date(),
+    };
+
+    if (publishImportedPosts) {
+      versionPointers.publishedVersionId = versionId;
+    }
+
+    await tx.update(articles).set(versionPointers).where(eq(articles.id, articleId));
 
     return {
       slug,
@@ -185,11 +190,13 @@ async function main() {
     const result = await upsertLegacyPost(fileName);
     results.push(result);
     console.log(
-      `[legacy-import] ${result.dryRun ? "DRY RUN" : "SYNC"} ${result.slug} created=${result.created} updated=${result.updated}`
+      `[legacy-import] ${result.dryRun ? "DRY RUN" : publishImportedPosts ? "PUBLISH" : "IMPORT"} ${result.slug} created=${result.created} updated=${result.updated}`
     );
   }
 
-  console.log(`[legacy-import] Processed ${results.length} files.`);
+  console.log(
+    `[legacy-import] Processed ${results.length} files. publishImportedPosts=${publishImportedPosts}`
+  );
 }
 
 main().catch((error) => {

@@ -1,7 +1,9 @@
-import { getPostBySlug, getAllPosts } from '../../../services/postService';
+import { getPostBySlug } from '../../../services/postService';
 import { PostDetail } from '../../../components/PostDetail';
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -29,13 +31,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       tags: post.tags,
     },
   };
-}
-
-export async function generateStaticParams() {
-  const posts = await getAllPosts();
-  return posts.map((post) => ({
-    slug: post.slug,
-  }));
 }
 
 export default async function BlogPostPage({ params }: Props) {
