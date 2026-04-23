@@ -10,6 +10,18 @@ type ParsedPostMetadata = {
   readTime?: string;
 };
 
+function normalizeFrontmatterDate(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().split("T")[0];
+  }
+
+  return new Date().toISOString().split("T")[0];
+}
+
 export function parsePostFile(fileContents: string): {
   metadata: ParsedPostMetadata;
   body: string;
@@ -21,10 +33,7 @@ export function parsePostFile(fileContents: string): {
       title: typeof data.title === "string" ? data.title : "",
       summary: typeof data.summary === "string" ? data.summary : "",
       author: typeof data.author === "string" ? data.author : "Admin",
-      date:
-        typeof data.date === "string"
-          ? data.date
-          : new Date().toISOString().split("T")[0],
+      date: normalizeFrontmatterDate(data.date),
       tags: Array.isArray(data.tags)
         ? data.tags.filter((tag): tag is string => typeof tag === "string")
         : ["General"],
