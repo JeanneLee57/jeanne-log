@@ -1,0 +1,165 @@
+---
+title: "AI TDD 기반 하네스 엔지니어링"
+date: "2026-04-22"
+tags: [tdd, orchestration, harness, refactoring]
+summary: "Codex + Claude를 오케스트레이션해 TDD 사이클(red→green→refactor)을 자동화하는 하네스 파이프라인 구축"
+author: Jeanne
+---
+
+# tdd-harness 개발 스레드
+
+## 발단 — CARSA-5149 관찰가능성 감사
+
+CARSA-5149 아티팩트를 B+ 평가로 감사하면서 구체적 결함이 도출됐다. summary.json에 비용 집계가 없고, coverage 실패 원인이 불명확하며, 에이전트 내부 tool-call 단위 추적이 없다는 세 가지가 핵심이었다. 이 감사가 이후 모든 작업의 출발점이 됐다.
+
+## 1단계 — 메트릭 3종 동시 적용
+
+감사 결과를 바탕으로 step_metrics, verify 트랜스크립트, agent-metrics를 한꺼번에 붙였다. 이 과정에서 ui-fixer가 실제 구현 역할에 맞지 않는다는 판단이 생겨 implementor로 교체했다.
+
+## 2단계 — review-fix 루프 설계와 롤백
+
+review 결과를 자동으로 fix에 물려주는 루프를 설계했다. Option A(단순 재시도)와 Option B(분기 처리) 중 Option A를 선택해 구현을 시작했으나, 예상보다 범위가 커져 롤백을 결정했다. 별도 PR로 분리하기로 했다.
+
+## 3단계 — 토큰 메트릭 추가
+
+`--output-format json` 플래그로 transcript 헤더에 토큰/비용/시간 메트릭을 남기기 시작했다. 이게 이후 CARSA-6454 감사에서 수치 분석의 기반이 됐다.
+
+## 4단계 — run_codex_agent.mjs 단일 책임 분리
+
+파일이 지나치게 많은 역할을 맡고 있어서 4개 함수로 분리했다. 이 리팩터링이 이후 stream-json 감사 기능을 추가할 자리를 만들었다.
+
+## 5단계 — decision_log 제거
+
+step status와 중복된다는 판단으로 decision_log를 제거했다. 관찰가능성을 높이려던 초기 방향과 역설적으로 보이지만, 같은 정보를 두 곳에 유지하는 비용이 더 컸다.
+
+---
+
+## 2026-04-08 — CARSA-6454 감사에서 드러난 context 설계 문제
+
+### 두 번째 관찰가능성 감사
+
+3단계에서 심은 메트릭 덕분에 CARSA-6454 아티팩트의 토큰 사용량을 수치로 분석할 수 있었다.
+
+| 에이전트 | output | cache_creation | cache_read | 비용 |
+|---------|--------|----------------|------------|------|
+| test-automator | 10,963 | 39,185 | 300,829 | $0.452 |
+| implementor | 4,225 | 26,587 | 455,277 | $0.300 |
+| reviewer | 6,496 | 39,525 | 254,346 | $0.322 |
+| **합계** | **21,684** | **105,297** | **1,010,452** | **$1.074** |
+
+산출물은 순수함수 6개짜리 파일 2개였고, reviewer는 "do not merge"를 냈다. $1.07은 명백히 과했다. transcript에 기록된 모델명이 `gpt-5.4`였지만 비용을 역산하면 Claude Sonnet 요금표와 정확히 맞아떨어졌다. orchestrator가 내부적으로 모델 alias를 쓰고 있었던 것.
+
+### coverage 파싱 실패 원인 규명
+
+`skipped_parse_failed`가 11ms 만에 종료된 이유를 추적했다. `getPackageAndRelativePath`는 `apps/carbontrack*`, `packages/api`, `packages/utils`만 인식한다. `scripts/ai/`는 여기 해당하지 않아 `null`을 반환하고, `collectCoverageTargets`가 빈 배열을 돌려줬다. 이름이 오해를 유발했을 뿐, 실제 원인은 인식되지 않는 경로였다. 근본 수정은 `run_targeted_tests.mjs` 구조 변경을 요구해 이번 범위 밖으로 남겼고, orchestrator 로그에 실제 원인 메시지를 명시하는 것으로 마무리했다.
+
+### context slimming — downstream 보정 → upstream 설계
+
+초기에 `slimPlanForAgents()`를 만들어 plan.md를 에이전트별로 깎아서 전달하는 방식으로 구현했다. 그런데 이 접근은 잘못 만들어진 단일 플랜을 나중에 보정하는 것이었다. 올바른 방향은 플래너가 처음부터 에이전트 소비 단위로 플랜을 생성하는 것이다.
+
+처음에는 에이전트별로 내용을 분리해서 쓰는 구조를 시도했지만, 플래닝 단계에서 토큰 비용이 오히려 늘어난다는 지적을 받았다. 올바른 방식은 **플랜을 한 번만 쓰고 섹션에 대상 에이전트 마커를 달아두는 것**이다. `build_agent_contexts.mjs`는 마커를 보고 해당 에이전트에게 필요한 섹션만 추출하고, 플래너 프롬프트(`issue-to-pr-prompt.md`)도 마커가 포함된 규격화된 템플릿에 맞춰 출력하도록 강제했다. 테스트 시나리오는 아직 구현되지 않은 함수를 전제할 수 없으므로 함수명이 아닌 **유저/동작 시나리오**로 작성하도록 명시했다.
+
+### 2순위 캐시 공유 — 실효성 없음으로 결론
+
+implementor와 reviewer가 동일한 섹션을 읽으면 캐시 prefix를 공유할 수 있다고 2순위로 분류했었다. 그런데 에이전트 3개가 순차로 1회씩만 실행되고, TDD 관점에서 에이전트별로 최적화된 context를 주면 내용이 달라지므로 캐시 prefix가 달라진다. **context 슬리밍과 캐시 공유는 트레이드오프 관계**다. transcript의 cache_read 1M 토큰은 에이전트 간 공유가 아니라 에이전트 내부에서 API를 여러 번 호출하는 동안 앞선 context가 재사용된 것이라, 개선 우선순위는 처음부터 없었어야 할 항목이었다.
+
+### 실제 토큰 낭비의 원인
+
+플랜은 ~2,000 토큰으로 전체 비용의 0.2%에 불과했다. 초기 개선안 1~3순위가 모두 플랜 관련이었던 건 잘못된 진단이었다. 진짜 원인은 에이전트가 코드베이스를 탐색하면서 읽은 파일들이었다. test-automator.md가 51KB인 건 related test files 5개 × ~8KB 때문이고, reviewer.md가 36KB인 건 diff 최대 30KB 때문이다.
+
+### 에이전트 샌드박스 설계 문제 제기
+
+현재 implementor는 `sandbox_mode = "workspace-write"`로 전체 codebase 읽기/쓰기가 가능하고, reviewer는 `read-only`지만 역시 전체 codebase를 읽을 수 있다. context 파일은 안내일 뿐 접근을 막지 않는다. cache_read 455K, 300K 토큰의 실제 출처다.
+
+하네스 엔지니어링 원칙은 각 에이전트에게 샌드박스를 제공해 그 안에서만 작동하게 하는 것인데, 지금 구현은 반대다. 규제 필요 여부를 판단하기 전에 에이전트가 실제로 무엇을 읽는지 데이터를 쌓기로 했다.
+
+### 다음 작업
+
+`run_codex_agent.mjs`에서 `--output-format json`을 `--output-format stream-json`으로 전환해 모든 tool call 이벤트를 캡처하는 file access 감사 로그를 구축한다. 감사 데이터를 확보한 뒤 sandbox 제한 여부를 결정하고, 그 다음으로 related test files 토크나이저 기반 슬리밍을 구현한다. 테스트 파일 전체 대신 구조(import, describe/it, mock 선언)만 추출하고 `@anthropic-ai/tokenizer`로 5파일 합산 ~1,500 토큰 상한을 적용하는 방향이다.
+
+---
+
+## 2026-04-09 — orchestrate_tdd 전면 리팩터링과 순수 함수 아키텍처 확립
+
+### 리팩터링 동기
+
+`orchestrate_tdd.mjs` 단일 파일이 1,000줄에 가까워지면서 세 가지 문제가 쌓였다. 잦은 머지 충돌, 어느 섹션을 수정하는지 파악하기 어려운 가독성 저하, 그리고 전체 파이프라인 제어 흐름을 한눈에 읽을 수 없는 상태였다. 사용자가 제시한 to-be 패턴은 명확했다: 각 단계는 결과 객체를 반환하고 오케스트레이터는 흐름 제어만 담당하는 것.
+
+### 1차 분리 — tdd_orchestration/ 폴더 생성
+
+`scripts/ai/tdd_orchestration/` 폴더를 만들고 역할별로 파일을 분리했다:
+
+```text
+scripts/ai/
+├── orchestrate_tdd.mjs          ← 6줄 (thin entry point)
+├── logger.mjs                   ← 공유 log()
+├── git_utils.mjs                ← 보안 강화 gitCheckpoint + squash --mixed
+├── review_parser.mjs            ← formatBlockingFindings, sanitizeFindingField 추가
+│
+└── tdd_orchestration/
+    ├── index.mjs                ← main() — 파이프라인 제어 흐름만
+    ├── context.mjs              ← parseArgs, buildConfig, buildPaths
+    ├── timer.mjs                ← createTimer(), applyMetrics()
+    ├── runners.mjs              ← runBuildContexts, runTargetedTests, runCodexAgent, runPnpmTest
+    ├── coverage.mjs             ← parseCoverage, groupCoverageTargets, runCoverageCheck
+    └── steps/
+        ├── writeTests.mjs       ← Step 1
+        ├── verifyRed.mjs        ← Step 2
+        ├── implement.mjs        ← Step 3
+        ├── verifyGreenLoop.mjs  ← Steps 4+5
+        └── reviewLoop.mjs       ← Step 6
+```
+
+`git_utils.mjs`는 이 과정에서 함께 보강됐다. `git add -A` 대신 sensitive 파일을 제외하는 방식으로 gitCheckpoint를 강화하고, squashCheckpoints는 `--soft`에서 `--mixed`로 전환했다.
+
+### 2차 평가 — 구조적 문제 6가지 도출
+
+1차 분리 후 코드를 정밀 검토하니 순수 함수 분리가 불완전한 부분이 남아 있었다:
+
+1. **ctx God Object**: 설정, 경로, 가변 상태, 부수효과 메서드가 하나의 객체에 혼재
+2. **step의 summary 직접 변경**: `ctx.summary.all_tests_passing = true` 같은 은닉된 부수효과
+3. **15+ 파라미터 flat destructuring**: reviewLoop private 함수들이 ctx를 풀었다 다시 묶는 boilerplate
+4. **log() 중복**: `git_utils.mjs`와 `tdd_orchestration/logger.mjs`에 동일 함수 중복
+5. **process.exit 산재**: step 함수 내부에서도 `process.exit` 호출
+6. **coverage subprocess 불일치**: `coverage.mjs`만 `spawnSync`를 직접 호출, 나머지는 `runners.mjs` 경유
+
+### 2차 수정 — 6가지 해결
+
+`context.mjs`를 `buildConfig()`(frozen, 불변 설정)와 `buildPaths()`(frozen, 파생 경로)로 분리하고 `summary`는 `index.mjs`에서만 관리하게 했다. step 함수는 `{ result, metrics, ... }` 반환만 하고, summary 갱신은 오케스트레이터에서 `applyMetrics(summary, result.metrics)`로 명시적으로 처리했다. `process.exit`는 `orchestrate_tdd.mjs`의 `process.exit(main())`으로 집중했다. `runners.mjs`에 `runPnpmTest`를 추가해 coverage의 subprocess 호출도 통일했다.
+
+---
+
+## 2026-04-21 — 단일 세션 아키텍처로의 전환과 오케스트레이터 역할 재정의
+
+### 재진단 — "단일 에이전트 이름을 쓰는 다중 세션 구조"
+
+04-09 리팩터링으로 `orchestrate_tdd.mjs`는 깔끔해졌지만, 오늘 세션 초반 확인에서 핵심 문제가 드러났다. `index.mjs`에는 `write-tests`, `implement`, `review` 세 개의 step 정의가 있었고, 각 step마다 `invokeStep()`이 `runCodexStep()`을 다시 호출하고 있었다. `run_codex_agent.mjs`는 호출마다 `codex login --with-api-key`와 `codex exec`를 새로 실행했다.
+
+이는 사용자가 여러 세션에 걸쳐 반복적으로 요구해온 방향과 달랐다: "별도 프로세스로 쪼개지 말 것", "서브에이전트 흉내내지 말 것", "하나의 에이전트가 스스로 운전하게 둘 것". 4월 초부터 계속 이 방향을 말해왔는데, 04-09 리팩터링은 멀티 에이전트 구조는 없앴지만 step별 별도 세션 호출은 그대로 남겨둔 채 멈춰 있었다. "단일 에이전트"까지는 갔지만 "단일 세션"까지 밀지 못한 상태였다.
+
+### 구조 전환 — step 분기 제거, 단일 세션 진입점 도입
+
+오케스트레이터가 더 멍청하게, 에이전트가 더 자율적으로, 프롬프트는 더 정적으로 가는 방향으로 `index.mjs`를 재구성했다. step 정의와 step별 `codex exec` 호출을 제거하고, `prompts/README.md` 하나를 세션 진입점으로 삼아 단일 `codex exec` 호출로 대체했다. 에이전트는 그 안에서 `write-tests/README.md` → `implement/README.md` → `self-review/README.md`를 순서대로 읽고, 한 세션 안에서 전체 TDD를 수행하게 됐다. step별 프롬프트 문서는 그대로 유지하되, 에이전트가 세션 내부에서 각 역할로 전환하며 스스로 참조하는 방식이다.
+
+이 전환의 트레이드오프는 명확했다. 얻는 것: 컨텍스트 중복 제거, 구조 단순화, step 간 handoff 비용 제거. 잃는 것: 중간 단계 가시성, step별 실패 격리, 실패 시 재시도 단위가 전체 세션으로 커짐. 현재 오케스트레이터 상태에서는 그 교환이 가치 있다는 판단이었다.
+
+### 철학적 충돌 — verifier 필요성 재검토
+
+단일 세션 전환 직후, 구조적 모순이 제기됐다. 에이전트가 세션 내부에서 이미 red/green/self-review를 스스로 수행한다고 전제했다면, 오케스트레이터가 그 결과를 단계별 verifier로 다시 검증하는 건 에이전트를 믿겠다고 해놓고 실제로는 불신하는 셈이다. 에이전트가 이미 테스트를 돌렸는데 verifier가 왜 필요하냐는 지적이었다.
+
+논의를 거쳐 `verifyRed / verifyGreen / verifySelfReview` 같은 단계별 재검증은 없애기로 했다. 오케스트레이터는 `tdd_run_report.json`과 `review.json`의 `status` 필드와 필수 산출물 존재 여부만 확인하는 최소 가드레일로 축소했다. 계약 포맷은 이 두 JSON 파일이고, 별도 파싱 도구 없이 `JSON.parse`로 최소 필드만 읽는다.
+
+### self-review blocking의 책임 이전
+
+review blocking 처리 방식도 같은 맥락에서 정리했다. 에이전트가 세션 내부에서 self-review 결과를 보고 직접 판단한다. blocking을 발견하면 스스로 수정 후 green을 재확인하거나, 고칠 수 없으면 `needs_human`으로 종료한다. 오케스트레이터는 종료 상태(`completed`, `retry_requested`, `needs_human`)만 본다. `verifySelfReview` 호출 의존이 제거되고, blocking 판단이 오케스트레이터에서 에이전트 쪽으로 완전히 이전됐다.
+
+### 미결 — 세션 재호출 시 resume 전략
+
+오늘 세션이 열린 채로 끝난 문제가 하나 있다. verifier 실패 또는 `retry_requested` 시 오케스트레이터가 전체 세션을 재호출하는데, 그 의미가 "처음부터 다시 하라"인지 "현재 산출물을 읽고 이어서 하라"인지 아직 결정되지 않았다. 올바른 방향은 resume다. 에이전트가 `TDD_OUTPUT_DIR`에 남아 있는 결과를 읽고 실패 지점부터 이어가는 것이지만, 구현 방식은 다음 세션으로 미뤄졌다.
+
+## 미결 과제
+
+- 세션 재호출 시 resume 전략 구현 (처음부터 재실행 vs. 산출물 읽고 이어서)
+- stream-json 기반 file access 감사 로그 완성 후 sandbox 제한 여부 결정
+- related test files 토크나이저 기반 슬리밍 (`@anthropic-ai/tokenizer`, 5파일 합산 ~1,500 토큰 상한)
+- `getPackageAndRelativePath`에 `scripts/ai/` 경로 추가 (coverage 근본 해결)

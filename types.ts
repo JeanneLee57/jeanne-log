@@ -8,6 +8,59 @@ export interface BlogPost {
   tags: string[];
   readTime: string;
   coverImage?: string;
+  contentSource?: 'database' | 'filesystem';
+}
+
+export interface DraftSummary {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  status: 'draft' | 'in_review' | 'regenerating' | 'published' | 'archived';
+  versionNumber: number | null;
+  openCommentCount: number;
+  updatedAt: string;
+}
+
+export interface DraftVersionSummary {
+  id: string;
+  versionNumber: number;
+  sourceType: 'weekly' | 'project' | 'manual' | 'regenerated';
+  sourceLabel?: string | null;
+  modelName?: string | null;
+  createdAt: string;
+}
+
+export interface DraftComment {
+  id: string;
+  articleVersionId: string;
+  startLine: number;
+  endLine: number;
+  selectedText: string;
+  body: string;
+  status: 'open' | 'resolved' | 'dismissed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DraftDetail {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  status: 'draft' | 'in_review' | 'regenerating' | 'published' | 'archived';
+  updatedAt: string;
+  currentVersionId: string | null;
+  currentVersionNumber: number | null;
+  content: string;
+  lineIndex: Array<{
+    lineNumber: number;
+    startOffset: number;
+    endOffset: number;
+    content: string;
+  }>;
+  versions: DraftVersionSummary[];
+  comments: DraftComment[];
 }
 
 export enum PageView {
