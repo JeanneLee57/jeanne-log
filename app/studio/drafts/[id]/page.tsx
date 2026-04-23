@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CommentManager } from "@/components/studio/CommentManager";
 import { DraftEditor } from "@/components/studio/DraftEditor";
 import { RegenerateDraftButton } from "@/components/studio/RegenerateDraftButton";
 import { getDraftDetailById } from "@/services/draftRepository";
@@ -196,45 +197,11 @@ export default async function DraftDetailPage({ params }: Props) {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-            <header className="mb-4 flex items-center justify-between">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Comments
-              </h2>
-              <span className="text-xs text-slate-400">{draft.comments.length} items</span>
-            </header>
-
-            {draft.comments.length === 0 ? (
-              <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
-                아직 코멘트가 없습니다. 다음 단계에서 인라인 코멘트 작성과 수정/삭제 기능이 추가됩니다.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {draft.comments.map((comment) => (
-                  <article
-                    key={comment.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">
-                        L{comment.startLine}
-                        {comment.startLine !== comment.endLine ? `-L${comment.endLine}` : ""}
-                      </span>
-                      <span className="rounded-full bg-slate-200 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                        {comment.status}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-700 dark:text-slate-200">
-                      {comment.body}
-                    </p>
-                    <pre className="mt-3 overflow-x-auto rounded-xl bg-white px-3 py-2 font-mono text-xs leading-5 text-slate-500 dark:bg-slate-950 dark:text-slate-400">
-                      {comment.selectedText}
-                    </pre>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+          <CommentManager
+            articleVersionId={draft.currentVersionId}
+            lineCount={draft.lineIndex.length}
+            initialComments={draft.comments}
+          />
         </div>
       </div>
     </section>
