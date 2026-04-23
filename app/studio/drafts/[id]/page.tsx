@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DraftEditor } from "@/components/studio/DraftEditor";
+import { RegenerateDraftButton } from "@/components/studio/RegenerateDraftButton";
 import { getDraftDetailById } from "@/services/draftRepository";
 
 const statusStyles: Record<string, string> = {
@@ -33,6 +34,8 @@ export default async function DraftDetailPage({ params }: Props) {
     notFound();
   }
 
+  const openCommentCount = draft.comments.filter((comment) => comment.status === "open").length;
+
   return (
     <section className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -63,31 +66,43 @@ export default async function DraftDetailPage({ params }: Props) {
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-900/80">
-          <div>
-            <dt className="text-slate-400">Current Version</dt>
-            <dd className="mt-1 font-semibold text-slate-900 dark:text-white">
-              {draft.currentVersionNumber ?? "-"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-400">Open Comments</dt>
-            <dd className="mt-1 font-semibold text-slate-900 dark:text-white">
-              {draft.comments.filter((comment) => comment.status === "open").length}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-slate-400">Versions</dt>
-            <dd className="mt-1 font-semibold text-slate-900 dark:text-white">{draft.versions.length}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-400">Updated</dt>
-            <dd className="mt-1 font-semibold text-slate-900 dark:text-white">
-              {new Date(draft.updatedAt).toLocaleString("ko-KR")}
-            </dd>
-          </div>
-        </dl>
+        <div className="grid gap-3">
+          <RegenerateDraftButton
+            draftId={draft.id}
+            openCommentCount={openCommentCount}
+            disabled={!draft.currentVersionId || draft.status === "regenerating"}
+          />
+
+          <dl className="grid grid-cols-2 gap-3 rounded-2xl bg-slate-50 p-4 text-sm dark:bg-slate-900/80">
+            <div>
+              <dt className="text-slate-400">Current Version</dt>
+              <dd className="mt-1 font-semibold text-slate-900 dark:text-white">
+                {draft.currentVersionNumber ?? "-"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-400">Open Comments</dt>
+              <dd className="mt-1 font-semibold text-slate-900 dark:text-white">{openCommentCount}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-400">Versions</dt>
+              <dd className="mt-1 font-semibold text-slate-900 dark:text-white">{draft.versions.length}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-400">Updated</dt>
+              <dd className="mt-1 font-semibold text-slate-900 dark:text-white">
+                {new Date(draft.updatedAt).toLocaleString("ko-KR")}
+              </dd>
+            </div>
+          </dl>
+        </div>
       </div>
+
+      {draft.status === "regenerating" ? (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900 dark:border-violet-900/60 dark:bg-violet-500/10 dark:text-violet-200">
+          A regeneration job is currently queued or running for this draft.
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
         <div className="grid gap-6">
