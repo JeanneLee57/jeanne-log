@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StudioLogoutButton } from "@/components/studio/StudioLogoutButton";
 import { getDraftSummaries } from "@/services/draftRepository";
 
 const statusStyles: Record<string, string> = {
@@ -22,19 +23,22 @@ export default async function DraftStudioPage() {
 
   return (
     <section className="space-y-8">
-      <header className="space-y-3">
-        <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white">
-          Studio
-        </span>
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Draft Queue
-          </h1>
-          <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-            DB에 적재된 초안과 현재 리뷰 상태를 확인하는 화면입니다. 상세 리뷰와 인증은 다음 단계에서
-            이어집니다.
-          </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-3">
+          <span className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white">
+            Studio
+          </span>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Draft Queue
+            </h1>
+            <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+              DB에 적재된 초안과 현재 리뷰 상태를 확인하는 화면입니다. 상세 리뷰와 인증은 다음 단계에서
+              이어집니다.
+            </p>
+          </div>
         </div>
+        <StudioLogoutButton />
       </header>
 
       {drafts.length === 0 ? (

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CommentManager } from "@/components/studio/CommentManager";
 import { DraftEditor } from "@/components/studio/DraftEditor";
 import { RegenerateDraftButton } from "@/components/studio/RegenerateDraftButton";
+import { StudioLogoutButton } from "@/components/studio/StudioLogoutButton";
 import { getDraftDetailById } from "@/services/draftRepository";
 
 const statusStyles: Record<string, string> = {
@@ -39,14 +40,17 @@ export default async function DraftDetailPage({ params }: Props) {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-3">
-          <Link
-            href="/studio/drafts"
-            className="inline-flex items-center text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-          >
-            Back to Drafts
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/studio/drafts"
+              className="inline-flex items-center text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            >
+              Back to Drafts
+            </Link>
+            <StudioLogoutButton />
+          </div>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <span

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertAdminRequest } from "@/lib/auth/admin-session";
 import { deleteComment, updateComment } from "@/services/commentRepository";
 import { updateCommentSchema } from "@/lib/validators/comments";
 
@@ -10,6 +11,7 @@ type RouteProps = {
 
 export async function PATCH(request: NextRequest, { params }: RouteProps) {
   try {
+    await assertAdminRequest(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = updateCommentSchema.safeParse(body);
@@ -49,13 +51,14 @@ export async function PATCH(request: NextRequest, { params }: RouteProps) {
         ok: false,
         error: message,
       },
-      { status: 500 }
+      { status: message.includes("Admin session") ? 401 : 500 }
     );
   }
 }
 
 export async function DELETE(_: NextRequest, { params }: RouteProps) {
   try {
+    await assertAdminRequest(_);
     const { id } = await params;
     const deleted = await deleteComment(id);
 
@@ -80,7 +83,7 @@ export async function DELETE(_: NextRequest, { params }: RouteProps) {
         ok: false,
         error: message,
       },
-      { status: 500 }
+      { status: message.includes("Admin session") ? 401 : 500 }
     );
   }
 }

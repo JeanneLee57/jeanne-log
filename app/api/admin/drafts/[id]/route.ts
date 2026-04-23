@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertAdminRequest } from "@/lib/auth/admin-session";
 import { getDb } from "@/db/client";
 import { createManualDraftVersion } from "@/lib/content/drafts";
 import { updateDraftSchema } from "@/lib/validators/drafts";
@@ -11,6 +12,7 @@ type RouteProps = {
 
 export async function PATCH(request: NextRequest, { params }: RouteProps) {
   try {
+    await assertAdminRequest(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = updateDraftSchema.safeParse(body);
@@ -36,7 +38,11 @@ export async function PATCH(request: NextRequest, { params }: RouteProps) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const status = message.includes("not found") ? 404 : 500;
+    const status = message.includes("Admin session")
+      ? 401
+      : message.includes("not found")
+        ? 404
+        : 500;
 
     return NextResponse.json(
       {

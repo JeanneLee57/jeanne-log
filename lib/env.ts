@@ -3,6 +3,8 @@ import { z } from "zod";
 const environmentSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   INTERNAL_API_TOKEN: z.string().min(1).optional(),
+  ADMIN_PASSWORD: z.string().min(1).optional(),
+  ADMIN_SESSION_SECRET: z.string().min(32).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
