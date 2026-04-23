@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { articleVersions, articles, reviewComments } from "@/db/schema";
 import { hasDatabaseUrl } from "@/lib/env";
@@ -14,45 +14,27 @@ export async function getDraftSummaries(): Promise<DraftSummary[]> {
     .select({
       article: articles,
       version: articleVersions,
+      openCommentCount: sql<number>`count(${reviewComments.id})`,
     })
     .from(articles)
     .leftJoin(articleVersions, eq(articles.currentVersionId, articleVersions.id))
+    .leftJoin(
+      reviewComments,
+      sql`${reviewComments.articleVersionId} = ${articleVersions.id} and ${reviewComments.status} = 'open'`
+    )
+    .groupBy(articles.id, articleVersions.id)
     .orderBy(desc(articles.updatedAt));
 
-  const draftSummaries = await Promise.all(
-    rows.map(async ({ article, version }) => {
-      let openCommentCount = 0;
-
-      if (version?.id) {
-        const commentRows = await db
-          .select({
-            id: reviewComments.id,
-          })
-          .from(reviewComments)
-          .where(
-            and(
-              eq(reviewComments.articleVersionId, version.id),
-              eq(reviewComments.status, "open")
-            )
-          );
-
-        openCommentCount = commentRows.length;
-      }
-
-      return {
-        id: article.id,
-        slug: article.slug,
-        title: article.title,
-        summary: article.summary,
-        status: article.status,
-        versionNumber: version?.versionNumber ?? null,
-        openCommentCount,
-        updatedAt: article.updatedAt.toISOString(),
-      } satisfies DraftSummary;
-    })
-  );
-
-  return draftSummaries;
+  return rows.map(({ article, version, openCommentCount }) => ({
+    id: article.id,
+    slug: article.slug,
+    title: article.title,
+    summary: article.summary,
+    status: article.status,
+    versionNumber: version?.versionNumber ?? null,
+    openCommentCount: Number(openCommentCount) || 0,
+    updatedAt: article.updatedAt.toISOString(),
+  })) satisfies DraftSummary[];
 }
 
 export async function getDraftDetailById(id: string): Promise<DraftDetail | null> {
