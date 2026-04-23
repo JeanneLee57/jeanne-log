@@ -10,13 +10,17 @@ function mapPublishedArticleToBlogPost(row: {
   version: typeof articleVersions.$inferSelect;
 }): BlogPost {
   const { article, version } = row;
+  const author =
+    typeof version.generationContext?.author === "string"
+      ? version.generationContext.author
+      : "Jeanne";
 
   return {
     slug: article.slug,
     title: article.title,
     summary: article.summary,
     content: version.mdxSource,
-    author: "Jeanne",
+    author,
     date: article.publishedAt
       ? article.publishedAt.toISOString().split("T")[0]
       : article.updatedAt.toISOString().split("T")[0],
