@@ -11,6 +11,17 @@ export interface BlogPost {
   contentSource?: 'database' | 'filesystem';
 }
 
+export interface DraftSummary {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  status: 'draft' | 'in_review' | 'regenerating' | 'published' | 'archived';
+  versionNumber: number | null;
+  openCommentCount: number;
+  updatedAt: string;
+}
+
 export enum PageView {
   HOME,
   POST_DETAIL,
