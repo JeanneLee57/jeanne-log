@@ -6,6 +6,7 @@ import {
   calculateReadTime,
   createPlainTextSnapshot,
 } from "@/lib/content/posts";
+import { UpdateDraftInput } from "@/lib/validators/drafts";
 
 type CreateDraftInput = {
   slug: string;
@@ -107,6 +108,95 @@ export async function createOrUpdateDraft(
     await tx
       .update(articles)
       .set({
+        currentVersionId: insertedVersion[0].versionId,
+        updatedAt: now,
+        status: "draft",
+      })
+      .where(eq(articles.id, articleId));
+
+    return {
+      articleId,
+      versionId: insertedVersion[0].versionId,
+      versionNumber: nextVersionNumber,
+    };
+  });
+}
+
+export async function createManualDraftVersion(
+  db: Database,
+  articleId: string,
+  input: UpdateDraftInput
+) {
+  const now = new Date();
+  const plainTextSnapshot = createPlainTextSnapshot(input.mdxSource);
+  const lineIndex = buildLineIndex(input.mdxSource);
+
+  return db.transaction(async (tx) => {
+    const articleRows = await tx
+      .select()
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    if (articleRows.length === 0) {
+      throw new Error("Draft not found.");
+    }
+
+    const article = articleRows[0];
+
+    if (!article.currentVersionId) {
+      throw new Error("Draft has no current version.");
+    }
+
+    const currentVersionRows = await tx
+      .select()
+      .from(articleVersions)
+      .where(eq(articleVersions.id, article.currentVersionId))
+      .limit(1);
+
+    if (currentVersionRows.length === 0) {
+      throw new Error("Current draft version not found.");
+    }
+
+    const currentVersion = currentVersionRows[0];
+    const latestVersion = await tx
+      .select({
+        versionNumber: articleVersions.versionNumber,
+      })
+      .from(articleVersions)
+      .where(eq(articleVersions.articleId, articleId))
+      .orderBy(desc(articleVersions.versionNumber))
+      .limit(1);
+
+    const nextVersionNumber = (latestVersion[0]?.versionNumber ?? 0) + 1;
+
+    const insertedVersion = await tx
+      .insert(articleVersions)
+      .values({
+        articleId,
+        versionNumber: nextVersionNumber,
+        sourceType: "manual",
+        sourceLabel: "studio-editor",
+        mdxSource: input.mdxSource,
+        plainTextSnapshot,
+        lineIndex,
+        generationPromptSnapshot: currentVersion.generationPromptSnapshot,
+        generationContext: {
+          ...currentVersion.generationContext,
+          readTime: calculateReadTime(plainTextSnapshot),
+          editor: "studio",
+        },
+        modelName: currentVersion.modelName,
+      })
+      .returning({
+        versionId: articleVersions.id,
+      });
+
+    await tx
+      .update(articles)
+      .set({
+        title: input.title,
+        summary: input.summary,
         currentVersionId: insertedVersion[0].versionId,
         updatedAt: now,
         status: "draft",

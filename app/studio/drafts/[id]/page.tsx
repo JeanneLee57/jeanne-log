@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DraftEditor } from "@/components/studio/DraftEditor";
 import { getDraftDetailById } from "@/services/draftRepository";
 
 const statusStyles: Record<string, string> = {
@@ -89,50 +90,60 @@ export default async function DraftDetailPage({ params }: Props) {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
-          <header className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Current Source
-            </h2>
-          </header>
+        <div className="grid gap-6">
+          <DraftEditor
+            key={draft.currentVersionId ?? "empty-version"}
+            draftId={draft.id}
+            initialTitle={draft.title}
+            initialSummary={draft.summary}
+            initialContent={draft.content}
+          />
 
-          {draft.lineIndex.length === 0 ? (
-            <div className="px-5 py-8 text-sm text-slate-500 dark:text-slate-400">
-              아직 버전 콘텐츠가 없습니다.
-            </div>
-          ) : (
-            <div className="max-h-[70vh] overflow-auto">
-              <ol className="divide-y divide-slate-100 dark:divide-slate-900">
-                {draft.lineIndex.map((line) => {
-                  const commentsForLine = draft.comments.filter(
-                    (comment) =>
-                      comment.status === "open" &&
-                      line.lineNumber >= comment.startLine &&
-                      line.lineNumber <= comment.endLine
-                  );
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <header className="border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Current Source
+              </h2>
+            </header>
 
-                  return (
-                    <li
-                      key={`${line.lineNumber}-${line.startOffset}`}
-                      className={`grid grid-cols-[72px_minmax(0,1fr)] gap-4 px-5 py-2 font-mono text-sm ${
-                        commentsForLine.length > 0
-                          ? "bg-amber-50/80 dark:bg-amber-500/10"
-                          : "bg-transparent"
-                      }`}
-                    >
-                      <span className="select-none text-right text-xs leading-6 text-slate-400">
-                        {line.lineNumber}
-                      </span>
-                      <pre className="overflow-x-auto whitespace-pre-wrap break-words leading-6 text-slate-700 dark:text-slate-200">
-                        {line.content || " "}
-                      </pre>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-          )}
-        </section>
+            {draft.lineIndex.length === 0 ? (
+              <div className="px-5 py-8 text-sm text-slate-500 dark:text-slate-400">
+                아직 버전 콘텐츠가 없습니다.
+              </div>
+            ) : (
+              <div className="max-h-[70vh] overflow-auto">
+                <ol className="divide-y divide-slate-100 dark:divide-slate-900">
+                  {draft.lineIndex.map((line) => {
+                    const commentsForLine = draft.comments.filter(
+                      (comment) =>
+                        comment.status === "open" &&
+                        line.lineNumber >= comment.startLine &&
+                        line.lineNumber <= comment.endLine
+                    );
+
+                    return (
+                      <li
+                        key={`${line.lineNumber}-${line.startOffset}`}
+                        className={`grid grid-cols-[72px_minmax(0,1fr)] gap-4 px-5 py-2 font-mono text-sm ${
+                          commentsForLine.length > 0
+                            ? "bg-amber-50/80 dark:bg-amber-500/10"
+                            : "bg-transparent"
+                        }`}
+                      >
+                        <span className="select-none text-right text-xs leading-6 text-slate-400">
+                          {line.lineNumber}
+                        </span>
+                        <pre className="overflow-x-auto whitespace-pre-wrap break-words leading-6 text-slate-700 dark:text-slate-200">
+                          {line.content || " "}
+                        </pre>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            )}
+          </section>
+        </div>
 
         <div className="grid gap-6">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950">
