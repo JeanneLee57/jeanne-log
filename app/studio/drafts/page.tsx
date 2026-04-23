@@ -2,6 +2,8 @@ import Link from "next/link";
 import { StudioLogoutButton } from "@/components/studio/StudioLogoutButton";
 import { getDraftSummaries } from "@/services/draftRepository";
 
+export const dynamic = "force-dynamic";
+
 const statusStyles: Record<string, string> = {
   draft: "bg-amber-100 text-amber-900",
   in_review: "bg-blue-100 text-blue-900",
