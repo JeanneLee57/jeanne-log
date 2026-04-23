@@ -15,3 +15,13 @@ export function assertInternalRequest(request: NextRequest) {
     throw new Error("Invalid internal API token.");
   }
 }
+
+export function getInternalWorkerId(request: NextRequest) {
+  const workerId = request.headers.get("x-worker-id")?.trim();
+
+  if (!workerId) {
+    throw new Error("Missing worker id.");
+  }
+
+  return workerId;
+}
