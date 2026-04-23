@@ -1,52 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
+import { parsePostFile, calculateReadTime } from '@/lib/content/posts';
+import {
+  getPublishedPostBySlugFromDatabase,
+  getPublishedPostsFromDatabase,
+} from '@/services/articleRepository';
 import { BlogPost, AboutData } from '../types';
 
 const contentDirectory = path.join(process.cwd(), 'contents', 'article');
 const pagesDirectory = path.join(process.cwd(), 'contents', 'about');
-
-// Helper to parse YAML Frontmatter
-const parseFrontmatter = (content: string) => {
-  const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
-  const match = content.match(frontmatterRegex);
-
-  if (!match) {
-    return { metadata: {}, body: content };
-  }
-
-  const frontmatterBlock = match[1];
-  const body = content.replace(frontmatterRegex, '').trim();
-
-  const metadata: any = {};
-  frontmatterBlock.split('\n').forEach(line => {
-    const [key, ...valueParts] = line.split(':');
-    if (key && valueParts.length > 0) {
-      let value = valueParts.join(':').trim();
-      
-      // Clean quotes
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'" ) && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
-      
-      // Handle arrays
-      if (value.startsWith('[') && value.endsWith(']')) {
-        metadata[key.trim()] = value.slice(1, -1).split(',').map(v => v.trim());
-      } else {
-        metadata[key.trim()] = value;
-      }
-    }
-  });
-
-  return { metadata, body };
-};
-
-const calculateReadTime = (text: string): string => {
-  const wpm = 200;
-  const words = text.trim().split(/\s+/).length;
-  const time = Math.ceil(words / wpm);
-  return `${time} min read`;
-};
 
 export async function getAboutContent(): Promise<AboutData | null> {
   const slug = 'about';
@@ -82,6 +45,15 @@ export async function getAboutContent(): Promise<AboutData | null> {
 }
 
 export async function getAllPosts(): Promise<BlogPost[]> {
+  try {
+    const databasePosts = await getPublishedPostsFromDatabase();
+    if (databasePosts.length > 0) {
+      return databasePosts;
+    }
+  } catch (error) {
+    console.warn('Failed to load posts from database, falling back to filesystem.', error);
+  }
+
   if (!fs.existsSync(contentDirectory)) {
     fs.mkdirSync(contentDirectory, { recursive: true });
     return [];
@@ -94,7 +66,7 @@ export async function getAllPosts(): Promise<BlogPost[]> {
       const slug = fileName.replace(/\.mdx?$/, '');
       const fullPath = path.join(contentDirectory, fileName);
       const fileContents = fs.readFileSync(fullPath, 'utf8');
-      const { metadata, body } = parseFrontmatter(fileContents);
+      const { metadata, body } = parsePostFile(fileContents);
 
       return {
         slug,
@@ -105,6 +77,7 @@ export async function getAllPosts(): Promise<BlogPost[]> {
         date: metadata.date || new Date().toISOString().split('T')[0],
         tags: metadata.tags || ['General'],
         readTime: metadata.readTime || calculateReadTime(body),
+        contentSource: 'filesystem',
       } as BlogPost;
     });
 
@@ -114,6 +87,15 @@ export async function getAllPosts(): Promise<BlogPost[]> {
 }
 
 export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
+  try {
+    const databasePost = await getPublishedPostBySlugFromDatabase(slug);
+    if (databasePost) {
+      return databasePost;
+    }
+  } catch (error) {
+    console.warn(`Failed to load post ${slug} from database, falling back to filesystem.`, error);
+  }
+
   const fullPathMd = path.join(contentDirectory, `${slug}.md`);
   const fullPathMdx = path.join(contentDirectory, `${slug}.mdx`);
   
@@ -127,7 +109,7 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
   }
 
   const fileContents = fs.readFileSync(fullPath, 'utf8');
-  const { metadata, body } = parseFrontmatter(fileContents);
+  const { metadata, body } = parsePostFile(fileContents);
 
   return {
     slug,
@@ -138,5 +120,6 @@ export async function getPostBySlug(slug: string): Promise<BlogPost | null> {
     date: metadata.date || new Date().toISOString().split('T')[0],
     tags: metadata.tags || ['General'],
     readTime: metadata.readTime || calculateReadTime(body),
+    contentSource: 'filesystem',
   } as BlogPost;
 }
