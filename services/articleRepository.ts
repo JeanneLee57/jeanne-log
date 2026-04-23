@@ -32,7 +32,6 @@ function mapPublishedArticleToBlogPost(row: {
           )
         : ["General"],
     readTime: calculateReadTime(version.plainTextSnapshot || version.mdxSource),
-    contentSource: "database",
   };
 }
 

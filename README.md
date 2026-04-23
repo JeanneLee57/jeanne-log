@@ -93,9 +93,6 @@ services/
   regenerationJobRepository.ts  # job 생성/claim/complete/fail
   postService.ts
 scripts/
-  import-legacy-posts.ts        # 기존 MDX 파일 → DB 일괄 import
-contents/
-  article/                      # legacy MDX 파일 (import 이후 참조용)
 ```
 
 ## 로컬 개발 설정
@@ -110,8 +107,3 @@ npm run db:migrate    # 마이그레이션 실행
 npm run dev
 ```
 
-기존 MDX 파일을 DB로 가져오려면:
-
-```bash
-npm run db:import:legacy
-```

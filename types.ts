@@ -8,7 +8,6 @@ export interface BlogPost {
   tags: string[];
   readTime: string;
   coverImage?: string;
-  contentSource?: 'database' | 'filesystem';
 }
 
 export interface DraftSummary {

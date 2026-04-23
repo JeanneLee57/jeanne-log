@@ -20,7 +20,7 @@
 | article status 흐름 이해, 상태 전이 로직 수정 | [아키텍처 > 상태 전이](./docs/architecture.md#상태-전이) |
 | API 엔드포인트 추가/수정, blog-pipeline-agent 연동 | [아키텍처 > API 경계](./docs/architecture.md#api-경계) |
 | 스튜디오 인증 관련 작업, 세션/미들웨어 수정 | [아키텍처 > 인증](./docs/architecture.md#인증) |
-| 공개 블로그 글 조회 로직, DB/파일 fallback 수정 | [아키텍처 > 공개 블로그 읽기 경로](./docs/architecture.md#공개-블로그-읽기-경로) |
+| 공개 블로그 글 조회 로직 수정 | [아키텍처 > 공개 블로그 읽기 경로](./docs/architecture.md#공개-블로그-읽기-경로) |
 | 재생성 job 흐름 수정, worker 연동, job lock 처리 | [아키텍처 > 재생성 흐름](./docs/architecture.md#재생성-흐름-상세) |
 | 스튜디오/공개 블로그 UI 수정, 컴포넌트 추가 | [아키텍처 > 프론트엔드 아키텍처](./docs/architecture.md#프론트엔드-아키텍처) |
 | 라인 코멘트, line_index 관련 로직 수정 | [아키텍처 > 라인 인덱스](./docs/architecture.md#라인-인덱스) |
