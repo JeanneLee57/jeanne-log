@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { isAdminSessionAuthenticated } from "@/lib/auth/admin-session";
 import { StudioLoginForm } from "@/components/studio/StudioLoginForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function StudioLoginPage() {
   const isAuthenticated = await isAdminSessionAuthenticated();
 
