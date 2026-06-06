@@ -69,3 +69,23 @@ body {
 .article-prose :where(a, code) {
   overflow-wrap: anywhere;
 }
+
+.article-prose :where(p:has(img)) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.article-prose :where(p:has(img) img) {
+  flex: 1 1 min(100%, 16rem);
+  min-width: 0;
+  object-fit: cover;
+}
+
+@media (max-width: 640px) {
+  .article-prose :where(p:has(img)) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
