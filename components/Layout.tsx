@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Github, Moon, Sun, Terminal } from 'lucide-react';
 import { GITHUB_CONFIG } from '../config';
 import { PageView } from '../types';
@@ -13,6 +14,8 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isDark, setIsDark] = React.useState(false);
+  const pathname = usePathname();
+  const isPostIndex = pathname === '/';
 
   // Initialize theme based on system preference or local storage could be added here
   React.useEffect(() => {
@@ -68,7 +71,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <main
+        className={`flex-grow w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 ${
+          isPostIndex ? 'max-w-6xl' : 'max-w-3xl'
+        }`}
+      >
         {children}
       </main>
 
