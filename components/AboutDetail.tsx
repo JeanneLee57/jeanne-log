@@ -86,7 +86,7 @@ export const AboutDetail: React.FC<AboutDetailProps> = ({ data }) => {
                     href={link.url}
                     data-print-url={link.printUrl ?? link.url}
                     {...(isExternal && link.type !== 'email' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors border print:border-none print:bg-transparent print:p-0 print:text-slate-700 print:font-normal print-link ${linkStyles[link.type] || linkStyles.github}`}
+                    className={`px-3.5 py-2 rounded-lg text-sm font-semibold transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 print:border-none print:bg-transparent print:p-0 print:text-slate-700 print:font-normal print-link ${linkStyles[link.type] || linkStyles.github}`}
                   >
                     {link.label}
                   </a>

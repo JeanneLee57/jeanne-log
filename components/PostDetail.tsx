@@ -101,7 +101,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
     <article className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <Link
         href="/"
-        className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+        className="mb-8 inline-flex items-center gap-2 rounded-md text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-4 focus-visible:ring-offset-white dark:text-slate-400 dark:hover:text-white dark:focus-visible:ring-offset-slate-950"
       >
         <ArrowLeft size={16} />
         Back to list

@@ -42,6 +42,16 @@ body {
 }
 
 
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 3px;
+}
+
+:where(a, button, input, textarea, select, summary, [tabindex]):focus:not(:focus-visible) {
+  outline: none;
+}
+
+
 .article-prose {
   overflow-wrap: anywhere;
 }
