@@ -40,3 +40,32 @@ body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-start-rgb));
 }
+
+
+.article-prose {
+  overflow-wrap: anywhere;
+}
+
+.article-prose :where(img, video, canvas, iframe, svg) {
+  max-width: 100%;
+}
+
+.article-prose :where(img, video, canvas, svg) {
+  height: auto;
+}
+
+.article-prose :where(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.article-prose :where(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.article-prose :where(a, code) {
+  overflow-wrap: anywhere;
+}

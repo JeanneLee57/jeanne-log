@@ -52,7 +52,7 @@ export const PostDetail: React.FC<PostDetailProps> = ({ post }) => {
         </div>
       </header>
 
-      <div className="prose prose-lg prose-slate dark:prose-invert max-w-none 
+      <div className="article-prose prose prose-lg prose-slate dark:prose-invert max-w-none 
         prose-headings:font-bold prose-headings:tracking-tight 
         prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline
         prose-code:text-gray-900 dark:prose-code:text-white prose-code:font-normal prose-code:before:content-none prose-code:after:content-none
