@@ -8,6 +8,34 @@ interface PostListProps {
   currentPage?: number;
   totalPages?: number;
   totalPosts?: number;
+  allTags?: string[];
+  activeTag?: string;
+}
+
+function buildListHref(page: number, activeTag?: string) {
+  const params = new URLSearchParams();
+
+  if (page > 1) {
+    params.set('page', String(page));
+  }
+
+  if (activeTag) {
+    params.set('tag', activeTag);
+  }
+
+  const query = params.toString();
+
+  return query ? `/?${query}` : '/';
+}
+
+function buildTagHref(tag?: string) {
+  if (!tag) {
+    return '/';
+  }
+
+  const params = new URLSearchParams({ tag });
+
+  return `/?${params.toString()}`;
 }
 
 function getVisiblePages(currentPage: number, totalPages: number) {
@@ -22,8 +50,10 @@ export const PostList: React.FC<PostListProps> = ({
   currentPage = 1,
   totalPages = 1,
   totalPosts = posts.length,
+  allTags = [],
+  activeTag,
 }) => {
-  if (totalPosts === 0) {
+  if (totalPosts === 0 && allTags.length === 0) {
     return (
       <div className="text-center py-20">
         <p className="text-slate-500 dark:text-slate-400 mb-4">아직 작성된 글이 없습니다.</p>
@@ -49,6 +79,40 @@ export const PostList: React.FC<PostListProps> = ({
             총 {totalPosts}개 · {currentPage}/{totalPages} 페이지
           </p>
         </div>
+
+        {allTags.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2" aria-label="태그 필터">
+            <Link
+              href="/"
+              aria-current={!activeTag ? 'page' : undefined}
+              className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
+                !activeTag
+                  ? 'border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950'
+                  : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white'
+              }`}
+            >
+              전체
+            </Link>
+            {allTags.map((tag) => {
+              const isActive = tag === activeTag;
+
+              return (
+                <Link
+                  key={tag}
+                  href={buildTagHref(tag)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
+                    isActive
+                      ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-400 dark:bg-indigo-400 dark:text-slate-950'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {tag}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {posts.length === 0 ? (
@@ -104,41 +168,49 @@ export const PostList: React.FC<PostListProps> = ({
 
       {totalPages > 1 ? (
         <nav className="flex flex-col gap-4 border-t border-slate-200 pt-8 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between" aria-label="글 목록 페이지네이션">
-          <PaginationLink page={currentPage - 1} disabled={!hasPreviousPage} label="이전" direction="previous" />
+          <PaginationLink page={currentPage - 1} disabled={!hasPreviousPage} label="이전" direction="previous" activeTag={activeTag} />
 
           <div className="flex flex-wrap justify-center gap-2" aria-label="페이지 번호">
             {visiblePages[0] > 1 ? (
               <>
-                <PageNumber page={1} currentPage={currentPage} />
+                <PageNumber page={1} currentPage={currentPage} activeTag={activeTag} />
                 {visiblePages[0] > 2 ? <span className="px-2 py-2 text-sm text-slate-400">…</span> : null}
               </>
             ) : null}
 
             {visiblePages.map((page) => (
-              <PageNumber key={page} page={page} currentPage={currentPage} />
+              <PageNumber key={page} page={page} currentPage={currentPage} activeTag={activeTag} />
             ))}
 
             {visiblePages[visiblePages.length - 1] < totalPages ? (
               <>
                 {visiblePages[visiblePages.length - 1] < totalPages - 1 ? <span className="px-2 py-2 text-sm text-slate-400">…</span> : null}
-                <PageNumber page={totalPages} currentPage={currentPage} />
+                <PageNumber page={totalPages} currentPage={currentPage} activeTag={activeTag} />
               </>
             ) : null}
           </div>
 
-          <PaginationLink page={currentPage + 1} disabled={!hasNextPage} label="다음" direction="next" />
+          <PaginationLink page={currentPage + 1} disabled={!hasNextPage} label="다음" direction="next" activeTag={activeTag} />
         </nav>
       ) : null}
     </section>
   );
 };
 
-function PageNumber({ page, currentPage }: { page: number; currentPage: number }) {
+function PageNumber({
+  page,
+  currentPage,
+  activeTag,
+}: {
+  page: number;
+  currentPage: number;
+  activeTag?: string;
+}) {
   const isCurrent = page === currentPage;
 
   return (
     <Link
-      href={page === 1 ? '/' : `/?page=${page}`}
+      href={buildListHref(page, activeTag)}
       aria-current={isCurrent ? 'page' : undefined}
       className={`inline-flex h-10 min-w-10 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
         isCurrent
@@ -156,11 +228,13 @@ function PaginationLink({
   disabled,
   label,
   direction,
+  activeTag,
 }: {
   page: number;
   disabled: boolean;
   label: string;
   direction: 'previous' | 'next';
+  activeTag?: string;
 }) {
   const content = (
     <>
@@ -180,7 +254,7 @@ function PaginationLink({
 
   return (
     <Link
-      href={page === 1 ? '/' : `/?page=${page}`}
+      href={buildListHref(page, activeTag)}
       className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white dark:focus-visible:ring-offset-slate-950"
     >
       {content}
