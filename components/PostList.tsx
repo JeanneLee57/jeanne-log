@@ -10,9 +10,10 @@ interface PostListProps {
   totalPosts?: number;
   allTags?: string[];
   activeTag?: string;
+  searchQuery?: string;
 }
 
-function buildListHref(page: number, activeTag?: string) {
+function buildListHref(page: number, activeTag?: string, searchQuery?: string) {
   const params = new URLSearchParams();
 
   if (page > 1) {
@@ -23,17 +24,25 @@ function buildListHref(page: number, activeTag?: string) {
     params.set('tag', activeTag);
   }
 
+  if (searchQuery) {
+    params.set('q', searchQuery);
+  }
+
   const query = params.toString();
 
   return query ? `/?${query}` : '/';
 }
 
-function buildTagHref(tag?: string) {
+function buildTagHref(tag?: string, searchQuery?: string) {
   if (!tag) {
     return '/';
   }
 
   const params = new URLSearchParams({ tag });
+
+  if (searchQuery) {
+    params.set('q', searchQuery);
+  }
 
   return `/?${params.toString()}`;
 }
@@ -52,6 +61,7 @@ export const PostList: React.FC<PostListProps> = ({
   totalPosts = posts.length,
   allTags = [],
   activeTag,
+  searchQuery = '',
 }) => {
   if (totalPosts === 0 && allTags.length === 0) {
     return (
@@ -80,10 +90,41 @@ export const PostList: React.FC<PostListProps> = ({
           </p>
         </div>
 
+        <form action="/" className="mt-6 flex flex-col gap-3 sm:flex-row" role="search">
+          {activeTag ? <input type="hidden" name="tag" value={activeTag} /> : null}
+          <label htmlFor="post-search" className="sr-only">
+            글 검색
+          </label>
+          <input
+            id="post-search"
+            type="search"
+            name="q"
+            defaultValue={searchQuery}
+            placeholder="제목, 요약, 태그로 검색"
+            className="min-h-11 flex-1 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
+          />
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-slate-950 px-5 text-sm font-medium text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200 dark:focus-visible:ring-offset-slate-950"
+            >
+              검색
+            </button>
+            {searchQuery ? (
+              <Link
+                href={activeTag ? buildTagHref(activeTag) : '/'}
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 px-4 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white dark:focus-visible:ring-offset-slate-950"
+              >
+                지우기
+              </Link>
+            ) : null}
+          </div>
+        </form>
+
         {allTags.length > 0 ? (
           <div className="mt-4 flex flex-wrap gap-2" aria-label="태그 필터">
             <Link
-              href="/"
+              href={searchQuery ? `/?q=${encodeURIComponent(searchQuery)}` : '/'}
               aria-current={!activeTag ? 'page' : undefined}
               className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
                 !activeTag
@@ -99,7 +140,7 @@ export const PostList: React.FC<PostListProps> = ({
               return (
                 <Link
                   key={tag}
-                  href={buildTagHref(tag)}
+                  href={buildTagHref(tag, searchQuery)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`inline-flex min-h-10 items-center rounded-full border px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
                     isActive
@@ -168,29 +209,29 @@ export const PostList: React.FC<PostListProps> = ({
 
       {totalPages > 1 ? (
         <nav className="flex flex-col gap-4 border-t border-slate-200 pt-8 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between" aria-label="글 목록 페이지네이션">
-          <PaginationLink page={currentPage - 1} disabled={!hasPreviousPage} label="이전" direction="previous" activeTag={activeTag} />
+          <PaginationLink page={currentPage - 1} disabled={!hasPreviousPage} label="이전" direction="previous" activeTag={activeTag} searchQuery={searchQuery} />
 
           <div className="flex flex-wrap justify-center gap-2" aria-label="페이지 번호">
             {visiblePages[0] > 1 ? (
               <>
-                <PageNumber page={1} currentPage={currentPage} activeTag={activeTag} />
+                <PageNumber page={1} currentPage={currentPage} activeTag={activeTag} searchQuery={searchQuery} />
                 {visiblePages[0] > 2 ? <span className="px-2 py-2 text-sm text-slate-400">…</span> : null}
               </>
             ) : null}
 
             {visiblePages.map((page) => (
-              <PageNumber key={page} page={page} currentPage={currentPage} activeTag={activeTag} />
+              <PageNumber key={page} page={page} currentPage={currentPage} activeTag={activeTag} searchQuery={searchQuery} />
             ))}
 
             {visiblePages[visiblePages.length - 1] < totalPages ? (
               <>
                 {visiblePages[visiblePages.length - 1] < totalPages - 1 ? <span className="px-2 py-2 text-sm text-slate-400">…</span> : null}
-                <PageNumber page={totalPages} currentPage={currentPage} activeTag={activeTag} />
+                <PageNumber page={totalPages} currentPage={currentPage} activeTag={activeTag} searchQuery={searchQuery} />
               </>
             ) : null}
           </div>
 
-          <PaginationLink page={currentPage + 1} disabled={!hasNextPage} label="다음" direction="next" activeTag={activeTag} />
+          <PaginationLink page={currentPage + 1} disabled={!hasNextPage} label="다음" direction="next" activeTag={activeTag} searchQuery={searchQuery} />
         </nav>
       ) : null}
     </section>
@@ -201,16 +242,18 @@ function PageNumber({
   page,
   currentPage,
   activeTag,
+  searchQuery,
 }: {
   page: number;
   currentPage: number;
   activeTag?: string;
+  searchQuery?: string;
 }) {
   const isCurrent = page === currentPage;
 
   return (
     <Link
-      href={buildListHref(page, activeTag)}
+      href={buildListHref(page, activeTag, searchQuery)}
       aria-current={isCurrent ? 'page' : undefined}
       className={`inline-flex h-10 min-w-10 items-center justify-center rounded-full px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950 ${
         isCurrent
@@ -229,12 +272,14 @@ function PaginationLink({
   label,
   direction,
   activeTag,
+  searchQuery,
 }: {
   page: number;
   disabled: boolean;
   label: string;
   direction: 'previous' | 'next';
   activeTag?: string;
+  searchQuery?: string;
 }) {
   const content = (
     <>
@@ -254,7 +299,7 @@ function PaginationLink({
 
   return (
     <Link
-      href={buildListHref(page, activeTag)}
+      href={buildListHref(page, activeTag, searchQuery)}
       className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:border-slate-800 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:bg-slate-900 dark:hover:text-white dark:focus-visible:ring-offset-slate-950"
     >
       {content}

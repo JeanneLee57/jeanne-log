@@ -9,6 +9,7 @@ interface HomeProps {
   searchParams?: Promise<{
     page?: string | string[];
     tag?: string | string[];
+    q?: string | string[];
   }>;
 }
 
@@ -27,15 +28,29 @@ function normalizePage(value: string | string[] | undefined, totalPages: number)
   return Math.min(parsedPage, totalPages);
 }
 
+function normalizeSearchQuery(value: string | string[] | undefined) {
+  return (getSingleParam(value) ?? '').trim();
+}
+
 export default async function Home({ searchParams }: HomeProps) {
   const [posts, params] = await Promise.all([getAllPosts(), searchParams]);
   const activeTag = getSingleParam(params?.tag);
+  const searchQuery = normalizeSearchQuery(params?.q);
+  const normalizedSearchQuery = searchQuery.toLocaleLowerCase();
   const allTags = Array.from(new Set(posts.flatMap((post) => post.tags))).sort((a, b) =>
     a.localeCompare(b)
   );
-  const filteredPosts = activeTag
-    ? posts.filter((post) => post.tags.includes(activeTag))
-    : posts;
+  const filteredPosts = posts.filter((post) => {
+    const matchesTag = activeTag ? post.tags.includes(activeTag) : true;
+    const matchesSearch = normalizedSearchQuery
+      ? [post.title, post.summary, ...post.tags]
+          .join(' ')
+          .toLocaleLowerCase()
+          .includes(normalizedSearchQuery)
+      : true;
+
+    return matchesTag && matchesSearch;
+  });
   const totalPages = Math.max(1, Math.ceil(filteredPosts.length / POSTS_PER_PAGE));
   const currentPage = normalizePage(params?.page, totalPages);
   const startIndex = (currentPage - 1) * POSTS_PER_PAGE;
@@ -49,6 +64,7 @@ export default async function Home({ searchParams }: HomeProps) {
       totalPosts={filteredPosts.length}
       allTags={allTags}
       activeTag={activeTag}
+      searchQuery={searchQuery}
     />
   );
 }
