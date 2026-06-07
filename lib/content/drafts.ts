@@ -6,7 +6,7 @@ import {
   calculateReadTime,
   createPlainTextSnapshot,
 } from "@/lib/content/posts";
-import { UpdateDraftInput } from "@/lib/validators/drafts";
+import { CreateDraftInput as StudioCreateDraftInput, UpdateDraftInput } from "@/lib/validators/drafts";
 
 type InternalCreateDraftInput = {
   slug: string;
@@ -207,6 +207,77 @@ export async function createManualDraftVersion(
       articleId,
       versionId: insertedVersion[0].versionId,
       versionNumber: nextVersionNumber,
+    };
+  });
+}
+
+export async function createStudioDraft(
+  db: Database,
+  input: Omit<StudioCreateDraftInput, "publish">
+) {
+  const now = new Date();
+  const plainTextSnapshot = createPlainTextSnapshot(input.mdxSource);
+  const lineIndex = buildLineIndex(input.mdxSource);
+
+  return db.transaction(async (tx) => {
+    const existingArticle = await tx
+      .select({
+        id: articles.id,
+      })
+      .from(articles)
+      .where(eq(articles.slug, input.slug))
+      .limit(1);
+
+    if (existingArticle.length > 0) {
+      throw new Error(`Draft slug already exists: ${input.slug}`);
+    }
+
+    const insertedArticle = await tx
+      .insert(articles)
+      .values({
+        slug: input.slug,
+        status: "draft",
+        title: input.title,
+        summary: input.summary,
+        updatedAt: now,
+      })
+      .returning({
+        articleId: articles.id,
+      });
+
+    const articleId = insertedArticle[0].articleId;
+
+    const insertedVersion = await tx
+      .insert(articleVersions)
+      .values({
+        articleId,
+        versionNumber: 1,
+        sourceType: "manual",
+        sourceLabel: "studio-editor",
+        mdxSource: input.mdxSource,
+        plainTextSnapshot,
+        lineIndex,
+        generationContext: {
+          editor: "studio",
+          readTime: calculateReadTime(plainTextSnapshot),
+        },
+      })
+      .returning({
+        versionId: articleVersions.id,
+      });
+
+    await tx
+      .update(articles)
+      .set({
+        currentVersionId: insertedVersion[0].versionId,
+        updatedAt: now,
+      })
+      .where(eq(articles.id, articleId));
+
+    return {
+      articleId,
+      versionId: insertedVersion[0].versionId,
+      versionNumber: 1,
     };
   });
 }

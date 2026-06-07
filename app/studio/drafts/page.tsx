@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CreateDraftForm } from "@/components/studio/CreateDraftForm";
 import { StudioLogoutButton } from "@/components/studio/StudioLogoutButton";
 import { getDraftSummaries } from "@/services/draftRepository";
 
@@ -35,20 +36,22 @@ export default async function DraftStudioPage() {
               Draft Queue
             </h1>
             <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-              DB에 적재된 초안과 현재 리뷰 상태를 확인하는 화면입니다. 상세 리뷰와 인증은 다음 단계에서
-              이어집니다.
+              DB에 적재된 초안을 검토하고, 새 글을 직접 만들고, 임시 저장하거나 발행까지 이어갈 수
+              있는 화면입니다.
             </p>
           </div>
         </div>
         <StudioLogoutButton />
       </header>
 
+      <CreateDraftForm />
+
       {drafts.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-900/60">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">No drafts yet</h2>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            아직 DB에 적재된 초안이 없습니다. `db:import:legacy` 또는 내부 draft API로 데이터를 먼저
-            넣어야 합니다.
+            아직 DB에 적재된 초안이 없습니다. 위 폼에서 새 draft를 직접 만들거나, 내부 draft API로
+            데이터를 적재할 수 있습니다.
           </p>
         </div>
       ) : (
