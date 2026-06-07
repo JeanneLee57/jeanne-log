@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { Database } from "@/db/client";
-import { articleVersions, articles } from "@/db/schema";
+import { articleVersions, articles, publicationEvents } from "@/db/schema";
 import {
   buildLineIndex,
   calculateReadTime,
@@ -8,7 +8,7 @@ import {
 } from "@/lib/content/posts";
 import { UpdateDraftInput } from "@/lib/validators/drafts";
 
-type CreateDraftInput = {
+type InternalCreateDraftInput = {
   slug: string;
   title: string;
   summary: string;
@@ -24,7 +24,7 @@ type CreateDraftInput = {
 
 export async function createOrUpdateDraft(
   db: Database,
-  input: CreateDraftInput
+  input: InternalCreateDraftInput
 ) {
   const now = new Date();
   const plainTextSnapshot = createPlainTextSnapshot(input.mdxSource);
@@ -199,7 +199,7 @@ export async function createManualDraftVersion(
         summary: input.summary,
         currentVersionId: insertedVersion[0].versionId,
         updatedAt: now,
-        status: "draft",
+        status: article.status === "published" ? "published" : "draft",
       })
       .where(eq(articles.id, articleId));
 
@@ -207,6 +207,70 @@ export async function createManualDraftVersion(
       articleId,
       versionId: insertedVersion[0].versionId,
       versionNumber: nextVersionNumber,
+    };
+  });
+}
+
+export async function publishDraft(
+  db: Database,
+  articleId: string,
+  actor = "studio"
+) {
+  const now = new Date();
+
+  return db.transaction(async (tx) => {
+    const articleRows = await tx
+      .select()
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    if (articleRows.length === 0) {
+      throw new Error("Draft not found.");
+    }
+
+    const article = articleRows[0];
+
+    if (!article.currentVersionId) {
+      throw new Error("Draft has no current version.");
+    }
+
+    const currentVersionRows = await tx
+      .select({
+        id: articleVersions.id,
+      })
+      .from(articleVersions)
+      .where(eq(articleVersions.id, article.currentVersionId))
+      .limit(1);
+
+    if (currentVersionRows.length === 0) {
+      throw new Error("Current draft version not found.");
+    }
+
+    await tx
+      .update(articles)
+      .set({
+        status: "published",
+        publishedVersionId: article.currentVersionId,
+        publishedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(articles.id, articleId));
+
+    await tx.insert(publicationEvents).values({
+      articleId,
+      fromVersionId: article.publishedVersionId,
+      toVersionId: article.currentVersionId,
+      eventType: "published",
+      actor,
+      createdAt: now,
+    });
+
+    return {
+      articleId,
+      publishedVersionId: article.currentVersionId,
+      publishedAt: now,
+      slug: article.slug,
     };
   });
 }

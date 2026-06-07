@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CommentManager } from "@/components/studio/CommentManager";
 import { DraftEditor } from "@/components/studio/DraftEditor";
+import { PublishDraftButton } from "@/components/studio/PublishDraftButton";
 import { RegenerateDraftButton } from "@/components/studio/RegenerateDraftButton";
 import { StudioLogoutButton } from "@/components/studio/StudioLogoutButton";
 import { getDraftDetailById } from "@/services/draftRepository";
@@ -74,6 +75,13 @@ export default async function DraftDetailPage({ params }: Props) {
         </div>
 
         <div className="grid gap-3">
+          <PublishDraftButton
+            draftId={draft.id}
+            slug={draft.slug}
+            disabled={!draft.currentVersionId || draft.status === "regenerating"}
+            showPublicLink={draft.status === "published"}
+          />
+
           <RegenerateDraftButton
             draftId={draft.id}
             openCommentCount={openCommentCount}
