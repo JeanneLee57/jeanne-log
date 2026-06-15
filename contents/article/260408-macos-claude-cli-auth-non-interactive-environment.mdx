@@ -1,0 +1,371 @@
+---
+title: macOS 비대화형 환경에서 Claude CLI 인증 문제 해결기
+summary: cron/launchd 환경의 Claude CLI 인증 실패 원인(Keychain 접근 제약)을 분석하고, AI 자율형 TDD 워크플로우 설계까지 완성한 과정
+date: 2026-04-08
+tags: [macOS, cron, launchd, Keychain, Claude, TDD, AI-Agent, automation]
+author: Jeanne
+---
+
+# 블로그 마크다운 문서 작성
+
+아래에 블로그용 마크다운 문서를 작성했습니다.
+
+---
+
+```markdown
+# macOS 비대화형 환경에서 Claude CLI 인증 문제 해결기
+### + AI 자율형 TDD 워크플로우 설계까지
+
+> **태그:** `#macOS` `#cron` `#launchd` `#Keychain` `#Claude` `#TDD` `#AI-Agent` `#automation`
+
+---
+
+## 1. 이 세션의 목표
+
+이 세션은 크게 두 가지 목표를 가지고 시작되었다.
+
+**목표 A — 백그라운드 스케줄러 문제 해결**
+매일 밤 자동으로 실행되어야 하는 블로그 파이프라인 스크립트(`nightly_refine.py`)가
+cron에서는 계속 실패하는 원인을 찾고, 안정적으로 동작하도록 고치는 것.
+
+**목표 B — AI 자율형 Issue-to-PR 워크플로우 완성**
+GitHub Issue가 들어오면 AI가 스스로 테스트를 작성하고, 구현하고, 모든 테스트를 통과할 때까지 반복한 뒤 PR을 올리는 워크플로우를 완성하는 것. 핵심은 **하네스 엔지니어링(Harness Engineering)** 패턴을 도입해 서브에이전트 간 역할을 엄격히 분리하는 것이었다.
+
+---
+
+## 2. 세부 태스크 목록
+
+| # | 태스크 | 결과 |
+|---|--------|------|
+| 1 | `nightly_refine.py` subprocess 실행 실패 원인 분석 | ✅ 해결 |
+| 2 | cron 환경의 `HOME` 경로 문제 수정 | ✅ 해결 |
+| 3 | macOS Keychain 접근 제약 이해 및 우회 방안 탐색 | ✅ 해결 |
+| 4 | cron → launchd 마이그레이션 시도 | ⚠️ 부분 실패 후 대안 채택 |
+| 5 | 최종 해결책 적용 및 보안 이슈 인지 | ✅ 해결 |
+| 6 | 4 서브에이전트 TDD 오케스트레이터 설계 | ✅ 설계 완료 |
+
+---
+
+## 3. 태스크별 상세
+
+---
+
+### 태스크 1 — subprocess 실행 실패 원인 분석
+
+#### 내용
+
+`nightly_refine.py`는 Claude CLI(`haiku`)를 subprocess로 호출하는 스크립트다.
+터미널에서 직접 실행하면 잘 되는데, 스케줄러를 통해 실행하면 Claude CLI가 아무 stderr 없이 실패했다.
+
+```
+[ERROR] HAIKU CLI Error: (stderr 비어있음)
+```
+
+#### 디버깅 과정
+
+1. 모델명 오류 또는 stderr 캡처 문제로 최초 의심.
+2. Python subprocess 환경에서 직접 재현 시도.
+3. **"인터랙티브 환경에서는 잘 되는데 subprocess에서만 실패한다"** 는 제보를 바탕으로 환경변수 쪽으로 의심 방향 전환.
+
+#### 주요 어려움
+
+- stderr가 비어있어 직접적인 에러 메시지를 얻지 못했다.
+- 로컬 터미널에서는 재현이 안 됨 → 환경 차이 자체가 문제였음.
+
+#### 관련 키워드
+
+`subprocess`, `stderr`, `환경변수 격리`, `비대화형 환경`
+
+---
+
+### 태스크 2 — cron 환경의 HOME 경로 문제
+
+#### 내용
+
+cron은 실행 시 `HOME` 환경변수를 `/var/root`로 설정하는 경우가 있다.
+Claude CLI는 인증 정보를 `~/.claude/`에서 읽는데, `HOME`이 바뀌면 해당 경로를 찾지 못한다.
+
+```bash
+# 문제: cron 환경에서 HOME=/var/root 로 설정됨
+# ~/.claude/ 대신 /var/root/.claude/ 를 탐색 → 인증 파일 없음
+```
+
+#### 디버깅 과정
+
+1. 인터랙티브 vs cron 환경의 차이를 정리.
+2. cron이 실행 시 최소한의 환경변수만 사용한다는 점 확인.
+3. **수정 방향 1:** subprocess 호출 시 `HOME` 환경변수를 명시적으로 전달.
+4. **수정 방향 2:** crontab 상단에 `HOME`과 `PATH`를 직접 선언.
+
+```
+# crontab 수정 예시
+HOME=/Users/jeanne
+PATH=/usr/local/bin:/usr/bin:/bin
+25 17 * * 1-5 /usr/bin/python3 /path/to/nightly_refine.py
+```
+
+#### 주요 어려움
+
+`HOME`을 고쳐도 여전히 실패 → 문제가 더 깊은 곳에 있었음.
+
+#### 관련 키워드
+
+`cron`, `HOME 환경변수`, `PATH`, `crontab 환경`, `비대화형 쉘`
+
+---
+
+### 태스크 3 — macOS Keychain 접근 제약
+
+#### 내용
+
+Claude CLI (Pro 구독, OAuth 방식)는 인증 토큰을 macOS **Keychain**에 저장한다.
+Keychain은 사용자 로그인 세션이 열려있을 때만 접근할 수 있다.
+cron은 사용자 세션 밖에서 실행되기 때문에 Keychain에 접근할 수 없다.
+
+```
+실제 에러의 근본 원인:
+  cron 프로세스 → Keychain 접근 시도 → 거부 → 인증 실패 → "Not logged in"
+```
+
+#### 디버깅 과정
+
+1. `HOME` 수정 후에도 `17:50` 실행에서 "Not logged in" 에러 지속.
+2. 사용자 세션에서 실행된다면 Keychain에 접근할 수 있을 것이라는 가설 → launchd 시도.
+3. launchd로 전환해도 동일 실패 재현.
+4. 결론: **cron이든 launchd든 Keychain을 열 수 없는 환경에서는 OAuth 토큰 접근 불가.**
+
+```
+macOS 인증 흐름 (정리):
+  Claude Pro OAuth 토큰
+    → 저장 위치: Keychain
+    → 접근 가능: 사용자 세션(터미널, GUI 앱)
+    → 접근 불가: cron, LaunchDaemon (non-interactive)
+    → 접근 가능(조건부): LaunchAgent (사용자 로그인 후 실행)
+```
+
+#### 주요 어려움
+
+- "사용자 세션에서 실행된다"는 launchd LaunchAgent도 실제로는 Keychain을 열지 못하는 경우가 있었다.
+- Pro 구독(OAuth)과 API 키 방식의 차이를 혼동 → "API 키로 전환하라"는 제안이 맞지 않는 상황이었음.
+
+#### 관련 키워드
+
+`macOS Keychain`, `OAuth 토큰`, `LaunchAgent vs LaunchDaemon`, `사용자 세션`, `보안 컨텍스트`
+
+---
+
+### 태스크 4 — cron → launchd 마이그레이션 시도
+
+#### 내용
+
+launchd의 **LaunchAgent**는 사용자 로그인 후 사용자 세션에서 실행되기 때문에
+Keychain 접근이 가능할 것으로 기대하며 마이그레이션을 시도했다.
+
+`~/Library/LaunchAgents/com.jeanne.blog-nightly-refine.plist` 생성:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jeanne.blog-nightly-refine</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/path/to/nightly_refine.py</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>17</integer>
+        <key>Minute</key>
+        <integer>25</integer>
+    </dict>
+</dict>
+</plist>
+```
+
+```bash
+launchctl load ~/Library/LaunchAgents/com.jeanne.blog-nightly-refine.plist
+```
+
+#### 디버깅 과정
+
+- plist 등록 후 17:50 실행에서도 동일 실패.
+- 파일 변경 시 `unload → load` 재등록이 필수임을 확인.
+- 결론적으로 이 접근법도 Keychain 문제를 해결하지 못했다.
+
+#### plist에 대한 보너스 학습
+
+> **왜 plist는 XML인가?**
+> macOS는 NeXT 시절부터 Property List 형식을 사용해 왔다.
+> JSON/YAML이 더 흔하지만 launchd는 XML plist만 지원한다.
+> `.plist` 파일은 Xcode나 `plutil` 명령어로 바이너리 변환도 가능하다.
+
+#### 관련 키워드
+
+`launchd`, `LaunchAgent`, `plist`, `StartCalendarInterval`, `launchctl load/unload`, `Property List`
+
+---
+
+### 태스크 5 — 최종 해결 및 보안 이슈 인지
+
+#### 내용
+
+Keychain을 우회하는 방법으로 **Keychain에서 토큰을 직접 꺼내 환경변수로 주입하는 방식**을 시도했다.
+
+```bash
+security find-generic-password -s "Claude Code" -a "jeanne" -w
+```
+
+이 값을 crontab의 `ANTHROPIC_API_KEY` 환경변수로 설정하면
+비대화형 환경에서도 Claude CLI가 인증을 통과할 수 있다.
+
+#### 보안 이슈
+
+**여기서 중요한 문제가 발생했다.**
+AI 도구(Claude Code 자체)가 위 명령어의 결과를 도구 출력으로 읽게 되면,
+민감한 API 키/토큰이 대화 컨텍스트에 그대로 노출된다.
+
+> "니가 그 키를 읽으면 어떡하냐.."
+
+이것은 정당한 지적이다. 올바른 처리 방법:
+- AI에게 명령어 결과를 **도구 출력으로 전달하지 않는다**.
+- 사용자가 직접 터미널에서 실행하고 값을 복사한다.
+- 또는 쉘 변수에만 저장하고 AI 세션에서는 확인하지 않는다.
+
+#### 관련 키워드
+
+`security CLI`, `Keychain 토큰 추출`, `민감 정보 처리`, `ANTHROPIC_API_KEY`, `비밀정보 노출 방지`
+
+---
+
+### 태스크 6 — AI 자율형 TDD 오케스트레이터 설계
+
+#### 내용
+
+이번 세션의 또 다른 축은 **GitHub Issue → 자동 TDD → PR** 파이프라인의 설계였다.
+기존 구현(`ai-issue-to-pr.yml`, `ai-issue-approve.yml`, `ai-plan-revise.yml`)에
+**테스트 주도 개발(TDD) 루프**를 추가하는 것이 목표였다.
+
+핵심 아이디어: **4개의 서브에이전트가 컨텍스트를 분리해 역할을 수행한다.**
+
+```
+┌─────────────────────────────────────────────────────┐
+│               Orchestrator (orchestrate_tdd.mjs)    │
+│                                                     │
+│  ┌──────────┐  ┌──────┐  ┌─────┐  ┌─────────────┐  │
+│  │Architect │→ │SDET  │→ │Dev  │→ │Fixer/Review │  │
+│  │(이슈 분석)│  │(테스트)│  │(구현)│  │(실패 수정)  │  │
+│  └──────────┘  └──────┘  └─────┘  └─────────────┘  │
+│                    ↑                      │          │
+│                    └──────────────────────┘          │
+│                     MAX_FIX_ITERATIONS 루프          │
+└─────────────────────────────────────────────────────┘
+```
+
+| 에이전트 | 역할 | TDD 단계 |
+|---------|------|---------|
+| **Architect** | 이슈 분석 및 테스트 시나리오 설계 | 계획 |
+| **SDET** | 구현 없이 테스트 코드만 작성 | Red |
+| **Dev** | 테스트를 통과하는 최소 구현 | Green |
+| **Fixer/Reviewer** | 실패 로그 분석 및 리팩터링 | Refactor |
+
+#### 왜 컨텍스트를 분리하는가?
+
+AI는 테스트와 구현 코드를 같은 컨텍스트에서 보면 **"치팅"**을 한다.
+즉, 테스트를 통과하도록 구현하는 대신, 구현에 맞게 테스트를 느슨하게 쓴다.
+컨텍스트를 엄격히 분리하면 각 에이전트가 자신의 역할에만 집중하게 된다.
+
+#### 핵심 컴포넌트
+
+**`orchestrate_tdd.mjs`** — Red-Green-Refactor 사이클 코드 구현
+```javascript
+// 자가 수정 루프
+for (let i = 0; i < MAX_FIX_ITERATIONS; i++) {
+  const result = await runDev(context);
+  if (allTestsPassing(result)) break;
+  await runFixer(result.failLog, context);
+}
+```
+
+**`build_agent_contexts.mjs`** — 단계별 컨텍스트 정제
+- 각 단계에 필요한 정보만 주입
+- `prevDiff`를 활용해 이전에 실패한 변경사항을 다음 Fixer에 전달
+  → AI가 똑같은 실수를 반복하는 것을 방지
+
+**`summary.json`** — 작업 상태 관리
+- 어느 단계까지 진행됐는지, 어떤 테스트가 실패하고 있는지 기록
+
+#### 토큰 최적화: 스켈레톤 추출
+
+파일 전체를 LLM에 넣는 대신, **코드 스켈레톤**만 추출해서 전달하는 전략:
+
+```python
+# 전체 파일 대신 인터페이스/시그니처만 추출
+def extract_skeleton(file_content):
+    # AST / Tree-sitter로 함수 시그니처, 클래스 정의만 추출
+    # 구현부는 "..." 으로 대체
+    pass
+```
+
+이를 통해 **토큰 비용 60~90% 절감** 가능.
+
+#### 에이전트 인프라 진화 방향
+
+```
+현재 (CI 기반)          →  향후 (이벤트 기반 + 샌드박스)
+─────────────────────      ─────────────────────────────
+GitHub Actions           Webhook + E2B / Docker VM
+타임아웃 6시간 제한       비동기, 타임아웃 없음
+환경 휘발성              격리된 환경에서 안전한 실행
+도입 쉬움                더 긴 호흡의 작업 가능
+```
+
+#### 관련 키워드
+
+`TDD`, `Red-Green-Refactor`, `서브에이전트`, `컨텍스트 격리`, `오케스트레이터`,
+`하네스 엔지니어링`, `Code RAG`, `AST`, `Tree-sitter`, `토큰 최적화`, `E2B`, `자가 수정 루프`
+
+---
+
+## 4. 핵심 교훈 요약
+
+### macOS 스케줄러 인증 치트시트
+
+```
+작업 유형                     cron       LaunchAgent   LaunchDaemon
+─────────────────────────────────────────────────────────────────
+Keychain 접근                  ❌          △(불안정)       ❌
+사용자 로그인 후 실행           ❌          ✅              ❌
+루트 권한 실행                 ✅          ❌              ✅
+환경변수 설정 용이성           ✅          ✅              ✅
+권장 용도 (인증 필요 작업)     API키 사용   사용자 세션 앱   비추천
+```
+
+### AI 에이전트 설계 원칙
+
+1. **역할 분리가 품질을 만든다** — 하나의 에이전트에 여러 역할을 주면 품질이 저하된다.
+2. **컨텍스트가 곧 행동이다** — AI에게 무엇을 보여주느냐가 무엇을 하느냐를 결정한다.
+3. **실패 로그를 다음 에이전트에게** — `prevDiff`로 이전 실수를 전달하면 반복 오류를 줄인다.
+4. **스켈레톤으로 충분하다** — LLM은 구현 세부사항보다 구조와 인터페이스를 더 잘 활용한다.
+
+---
+
+## 5. 다음 단계
+
+- [ ] `renderFileSnippets`의 스켈레톤 추출 로직을 실제 스크립트에 반영
+- [ ] Reviewer 에이전트의 제안을 Fixer에 재전달하는 "진짜 리팩터링" 루프 구현
+- [ ] CI 환경 한계 도달 시 E2B / Docker 샌드박스로 실행 환경 이전 검토
+- [ ] API 키 없이 Pro OAuth를 비대화형 환경에서 사용하는 방법 추가 탐색
+
+---
+
+*이 포스트는 Claude Code 세션 로그와 업무일지를 바탕으로 작성되었습니다.*
+```
+
+---
+
+두 세션(스케줄러 디버깅 + TDD 에이전트 설계)을 하나의 문서로 통합했습니다. 분리해서 별도 포스트로 만들고 싶으시면 말씀해 주세요.
